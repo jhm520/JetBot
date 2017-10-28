@@ -176,17 +176,38 @@ void AJetBotCharacter::SetJump(bool bInWantsToJump)
 
 				FVector JumpDirection = MoveDirection;
 
+				JumpDirection = FVector(0, 0, 1);
+
+
+				// If we are on a floor
 				if (CurrentFloorNormal != FVector::ZeroVector)
 				{
 					JumpDirection += CurrentFloorNormal;
 					JumpDirection.Normalize();
-					GetCharacterMovement()->Velocity = RealVelocity + JumpDirection*GetCharacterMovement()->JumpZVelocity;
+					/*GetCharacterMovement()->Velocity = RealVelocity + JumpDirection*GetCharacterMovement()->JumpZVelocity;*/
+					if (GetCharacterMovement()->Velocity.Z < 0.0f)
+					{
+						GetCharacterMovement()->Velocity.Z = 0.0f;
+					}
+
+					GetCharacterMovement()->Velocity.Z += GetCharacterMovement()->JumpZVelocity;
+					
 				}
+				//If we are on a wall
 				else if (CurrentWallNormal != FVector::ZeroVector)
 				{
 					JumpDirection += CurrentWallNormal;
 					JumpDirection.Normalize();
-					GetCharacterMovement()->Velocity = RealVelocity + JumpDirection*GetCharacterMovement()->JumpZVelocity;
+					GetCharacterMovement()->Velocity.X = RealVelocity.X + (JumpDirection*GetCharacterMovement()->JumpZVelocity).X;
+					GetCharacterMovement()->Velocity.Y = RealVelocity.Y + (JumpDirection*GetCharacterMovement()->JumpZVelocity).Y;
+
+					if (GetCharacterMovement()->Velocity.Z < 0.0f)
+					{
+						GetCharacterMovement()->Velocity.Z = 0.0f;
+					}
+
+					GetCharacterMovement()->Velocity.Z += GetCharacterMovement()->JumpZVelocity;
+					
 				}
 
 				CurrentFloorNormal = FVector::ZeroVector;

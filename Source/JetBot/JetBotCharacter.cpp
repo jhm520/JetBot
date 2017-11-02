@@ -47,10 +47,19 @@ void AJetBotCharacter::BeginPlay()
 		RollSoundPlayer->Stop();
 	}
 	
-	WindSoundPlayer = UGameplayStatics::SpawnSoundAttached(WindSound, GetRootComponent(), NAME_None, GetActorLocation(), EAttachLocation::KeepRelativeOffset, true, 1.0f, 1.0f, 0.0f, nullptr, nullptr, false);	if (WindSoundPlayer)
+	WindSoundPlayer = UGameplayStatics::SpawnSoundAttached(WindSound, GetRootComponent(), NAME_None, GetActorLocation(), EAttachLocation::KeepRelativeOffset, true, 1.0f, 1.0f, 0.0f, nullptr, nullptr, false);
+	if (WindSoundPlayer)
 	{
 		WindSoundPlayer->Sound = WindSound;
 		WindSoundPlayer->Stop();
+	}
+
+	JetSoundPlayer = UGameplayStatics::SpawnSoundAttached(JetSound, GetRootComponent(), NAME_None, GetActorLocation(), EAttachLocation::KeepRelativeOffset, true, 1.0f, 1.0f, 0.0f, nullptr, nullptr, false);
+
+	if (JetSoundPlayer)
+	{
+		JetSoundPlayer->Sound = JetSound;
+		JetSoundPlayer->Stop();
 	}
 }
 
@@ -221,10 +230,10 @@ void AJetBotCharacter::SetJump(bool bInWantsToJump)
 					GetCharacterMovement()->Velocity.X = RealVelocity.X + (JumpDirection*GetCharacterMovement()->JumpZVelocity).X;
 					GetCharacterMovement()->Velocity.Y = RealVelocity.Y + (JumpDirection*GetCharacterMovement()->JumpZVelocity).Y;
 
-					if (GetCharacterMovement()->Velocity.Z < 0.0f)
+					/*if (GetCharacterMovement()->Velocity.Z < 0.0f)
 					{
 						GetCharacterMovement()->Velocity.Z = 0.0f;
-					}
+					}*/
 
 					GetCharacterMovement()->Velocity.Z += GetCharacterMovement()->JumpZVelocity*FMath::Max(CurrentWallNormal.Z, 0.8f);
 
@@ -318,15 +327,21 @@ void AJetBotCharacter::Tick(float DeltaTime)
 
 	AddMovementInput(MoveDirection);
 
-	////Add friction if below a certain speed
-	//if (GetCharacterMovement()->Velocity.Size() < 300.0f)
-	//{
-	//	GetCharacterMovement()->GroundFriction = 8.0f;
-	//}
-	//else
-	//{
-	//	GetCharacterMovement()->GroundFriction = 0.0f;
-	//}
+	//Add friction if below a certain speed
+	if (GetCharacterMovement()->Velocity.Size() < 500.0f)
+	{
+		GetCharacterMovement()->GroundFriction = 8.0f;
+	}
+	else if (GetCharacterMovement()->Velocity.Size() < 1000.0f)
+	{
+
+		//GetCharacterMovement()->GroundFriction = FMath::Sin((3.141592f/2.0f) * (1 - (GetCharacterMovement()->Velocity.Size() - 500.0f)/500.0f)) * 8.0f;
+		GetCharacterMovement()->GroundFriction = (1 - ((GetCharacterMovement()->Velocity.Size() - 500.0f) / 500.0f)) * 8.0f;
+	}
+	else
+	{
+		GetCharacterMovement()->GroundFriction = 0.0f;
+	}
 
 	/*if (CurrentWallNormal != FVector::ZeroVector)
 	{
@@ -656,8 +671,10 @@ void AJetBotCharacter::TickAilerons(float DeltaTime)
 
 void AJetBotCharacter::TickSounds(float DeltaTime)
 {
-	if (RollSoundPlayer && WindSoundPlayer)
+	if (RollSoundPlayer && WindSoundPlayer && JetSoundPlayer)
 	{
+
+		//Set volumes
 		const float MaxRollSpeed = FMath::Min(RealVelocity.Size(), RollSoundMaxSpeed);
 		RollSoundPlayer->SetVolumeMultiplier(MaxRollSpeed / RollSoundMaxSpeed);
 
@@ -665,6 +682,9 @@ void AJetBotCharacter::TickSounds(float DeltaTime)
 		MaxWindSpeed -= WindSoundMinSpeed;
 		WindSoundPlayer->SetVolumeMultiplier(MaxWindSpeed / WindSoundMaxSpeed);
 
+		JetSoundPlayer->SetVolumeMultiplier(JetScale);
+
+		//Wind sound
 		if (RealVelocity.Size() > WindSoundMinSpeed)
 		{
 			if (!WindSoundPlayer->IsPlaying())
@@ -677,6 +697,8 @@ void AJetBotCharacter::TickSounds(float DeltaTime)
 			WindSoundPlayer->Stop();
 		}
 
+
+		//Rolling and sliding sounds
 		if (CurrentFloorNormal != FVector::ZeroVector)
 		{
 			if (RollSoundPlayer->Sound != RollSound)
@@ -706,6 +728,19 @@ void AJetBotCharacter::TickSounds(float DeltaTime)
 		else
 		{
 			RollSoundPlayer->Stop();
+		}
+
+		//Jet Sound
+		if (JetScale > 0.0f)
+		{
+			if (!JetSoundPlayer->IsPlaying())
+			{
+				JetSoundPlayer->FadeIn(0.2f);
+			}
+		}
+		else
+		{
+			JetSoundPlayer->Stop();
 		}
 	}
 }

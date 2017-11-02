@@ -224,6 +224,9 @@ protected:
 	USoundBase* JetSound;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Sound")
+	UAudioComponent* JetSoundPlayer;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Sound")
 	USoundBase* PeelOffSound;
 
 	//Functions

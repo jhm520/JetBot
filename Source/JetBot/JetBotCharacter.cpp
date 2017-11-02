@@ -22,6 +22,10 @@ AJetBotCharacter::AJetBotCharacter(const FObjectInitializer& ObjectInitializer) 
  	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 
+	WallRunCapsule = CreateDefaultSubobject<UCapsuleComponent>(FName(TEXT("WallRunCapsule")));
+	FAttachmentTransformRules AttachRules = FAttachmentTransformRules(EAttachmentRule::KeepRelative, EAttachmentRule::KeepRelative, EAttachmentRule::KeepRelative, false);
+	WallRunCapsule->AttachToComponent(GetRootComponent(), AttachRules);
+
 	//ColorBlock = CreateDefaultSubobject<UStaticMeshComponent>(FName(TEXT("ColorBlock")));
 
 }
@@ -48,8 +52,6 @@ void AJetBotCharacter::BeginPlay()
 		WindSoundPlayer->Sound = WindSound;
 		WindSoundPlayer->Stop();
 	}
-
-	ChangeColor();
 }
 
 void AJetBotCharacter::SetMoveForward(bool bInMove)
@@ -160,6 +162,19 @@ void AJetBotCharacter::SetJump(bool bInWantsToJump)
 			{
 
 			}
+
+			/*if (CurrentWallNormal != FVector::ZeroVector && !bIsGrinding)
+			{
+				bIsGrinding = true;
+				bWantsToJump = false;
+				GetWorldTimerManager().ClearTimer(GrindTimer);
+			}
+			else if (!bIsGrinding && CurrentFloorNormal == FVector::ZeroVector)
+			{
+				bIsGrinding = true;
+
+				GetWorldTimerManager().SetTimer(GrindTimer, this, &AJetBotCharacter::SetNotGrinding, 0.5f, false);
+			}*/
 		}
 		else
 		{
@@ -174,9 +189,9 @@ void AJetBotCharacter::SetJump(bool bInWantsToJump)
 			{
 				GetCharacterMovement()->SetMovementMode(MOVE_Falling);
 
-				FVector JumpDirection = MoveDirection;
+				//FVector JumpDirection = MoveDirection;
 
-				JumpDirection = FVector(0, 0, 1);
+				FVector JumpDirection = FVector(0, 0, 1);
 
 
 				// If we are on a floor
@@ -185,19 +200,24 @@ void AJetBotCharacter::SetJump(bool bInWantsToJump)
 					JumpDirection += CurrentFloorNormal;
 					JumpDirection.Normalize();
 					/*GetCharacterMovement()->Velocity = RealVelocity + JumpDirection*GetCharacterMovement()->JumpZVelocity;*/
+
+					GetCharacterMovement()->Velocity = RealVelocity + JumpDirection*GetCharacterMovement()->JumpZVelocity;
 					if (GetCharacterMovement()->Velocity.Z < 0.0f)
 					{
 						GetCharacterMovement()->Velocity.Z = 0.0f;
 					}
 
-					GetCharacterMovement()->Velocity.Z += GetCharacterMovement()->JumpZVelocity;
+					//GetCharacterMovement()->Velocity.Z += GetCharacterMovement()->JumpZVelocity;
 					
 				}
 				//If we are on a wall
 				else if (CurrentWallNormal != FVector::ZeroVector)
 				{
-					JumpDirection += CurrentWallNormal;
+					JumpDirection = CurrentWallNormal;
 					JumpDirection.Normalize();
+					/*GetCharacterMovement()->Velocity.X = RealVelocity.X + (JumpDirection*GetCharacterMovement()->JumpZVelocity).X;
+					GetCharacterMovement()->Velocity.Y = RealVelocity.Y + (JumpDirection*GetCharacterMovement()->JumpZVelocity).Y;*/
+
 					GetCharacterMovement()->Velocity.X = RealVelocity.X + (JumpDirection*GetCharacterMovement()->JumpZVelocity).X;
 					GetCharacterMovement()->Velocity.Y = RealVelocity.Y + (JumpDirection*GetCharacterMovement()->JumpZVelocity).Y;
 
@@ -206,12 +226,45 @@ void AJetBotCharacter::SetJump(bool bInWantsToJump)
 						GetCharacterMovement()->Velocity.Z = 0.0f;
 					}
 
-					GetCharacterMovement()->Velocity.Z += GetCharacterMovement()->JumpZVelocity;
-					
+					GetCharacterMovement()->Velocity.Z += GetCharacterMovement()->JumpZVelocity*FMath::Max(CurrentWallNormal.Z, 0.8f);
+
+					//bIsGrinding = false;
+					bIsGrinding = false;
 				}
 
-				CurrentFloorNormal = FVector::ZeroVector;
 				CurrentWallNormal = FVector::ZeroVector;
+				CurrentFloorNormal = FVector::ZeroVector;
+			}
+		}
+	}
+}
+
+void AJetBotCharacter::SetGrind(bool bInWantsToGrind)
+{
+	if (bInWantsToGrind != bWantsToGrind)
+	{
+		bWantsToGrind = bInWantsToGrind;
+
+		if (bWantsToGrind)
+		{
+			if (CurrentWallNormal != FVector::ZeroVector && !bIsGrinding)
+			{
+				bIsGrinding = true;
+				bWantsToGrind = false;
+			}
+			else if (!bIsGrinding && CurrentFloorNormal == FVector::ZeroVector)
+			{
+				bIsGrinding = true;
+				bWantsToGrind = false;
+				GetWorldTimerManager().SetTimer(GrindTimer, this, &AJetBotCharacter::SetNotGrinding, 0.5f, false);
+			}
+		}
+		else
+		{
+			if (bIsGrinding)
+			{
+				GetWorldTimerManager().ClearTimer(GrindTimer);
+				bIsGrinding = false;
 			}
 		}
 	}
@@ -239,7 +292,7 @@ void AJetBotCharacter::Tick(float DeltaTime)
 	}
 
 	//Add steering impulse from "leaning", implemented in blueprints
-	TickLeaning(DeltaTime);
+	//TickLeaning(DeltaTime);
 
 
 	//Add "ailerons" steering impulse. Not sure if I want to use this or not
@@ -258,46 +311,59 @@ void AJetBotCharacter::Tick(float DeltaTime)
 	{
 		//Add horizontal movement input
 		MoveDirection = InputVector.RotateAngleAxis(GetActorRotation().Yaw, InputVectors::Up);
-		MoveDirection.Normalize();
+		//MoveDirection.Normalize();
 	}
 	
 	JetDirection = MoveDirection;
 
-	//Limit Max Flatland Walking Speed
-	FVector LateralVelocity = GetCharacterMovement()->Velocity;
-	LateralVelocity.Z = 0.0f;
+	AddMovementInput(MoveDirection);
 
-	FVector PreviousLateralVelocity = PreviousVelocity;
-	PreviousLateralVelocity.Z = 0.0f;
+	////Add friction if below a certain speed
+	//if (GetCharacterMovement()->Velocity.Size() < 300.0f)
+	//{
+	//	GetCharacterMovement()->GroundFriction = 8.0f;
+	//}
+	//else
+	//{
+	//	GetCharacterMovement()->GroundFriction = 0.0f;
+	//}
 
-	FVector AdjustedMoveDirection = MoveDirection;
-
-	if (AdjustedMoveDirection != FVector::ZeroVector && GetCharacterMovement()->Velocity.Size() > MaxFlatlandWalkingSpeed)
+	/*if (CurrentWallNormal != FVector::ZeroVector)
 	{
-		AdjustedMoveDirection -= LateralVelocity.GetSafeNormal();
-		AdjustedMoveDirection.Normalize();
+		GetCharacterMovement()->FallingLateralFriction = 1.0f;
 	}
-
-	if (!FMath::IsNearlyEqual(AdjustedMoveDirection.Size(), 0.0f, 0.1f))
+	else
 	{
-		const float InputSize = InputVector.Size();
+		GetCharacterMovement()->FallingLateralFriction = 0.0f;
+	}*/
 
-		if (InputSize < 1.0f)
-		{
-			AdjustedMoveDirection = AdjustedMoveDirection.GetClampedToMaxSize(InputSize);
-		}
-		
-		AddMovementInput(AdjustedMoveDirection);
+	/*if (GetCharacterMovement()->Velocity.Size() < 1000.0f)
+	{
+		GetCharacterMovement()->AirControl = 0.2f;
 	}
+	else
+	{
+		GetCharacterMovement()->AirControl = 1.0f;
+	}*/
+
+	/*if (CurrentFloorNormal == FVector::ZeroVector)
+	{	
+		GetCharacterMovement()->MaxWalkSpeed = GetCharacterMovement()->Velocity.Size();
+	}
+	else
+	{
+		GetCharacterMovement()->MaxWalkSpeed = 2000.0f;
+	}*/
+
 
 	//Add jet impulse
 	if (bWantsToJet || JetScale > 0.01f)
 	{
 		TickJets(DeltaTime);
-		if (JetDirection != FVector::ZeroVector && GetCharacterMovement()->Velocity.Size() > GetCharacterMovement()->MaxWalkSpeed)
+		/*if (JetDirection != FVector::ZeroVector && GetCharacterMovement()->Velocity.Size() > GetCharacterMovement()->MaxWalkSpeed)
 		{
 			JetDirection -= LateralVelocity.GetSafeNormal();
-		}
+		}*/
 
 		GetCharacterMovement()->AddImpulse(JetDirection*JetImpulseScale*JetScale*DeltaTime, true);
 	}
@@ -315,12 +381,14 @@ void AJetBotCharacter::Tick(float DeltaTime)
 		}
 	}
 
-	//Check if we have "peeled off" of a wall
-	if (CurrentWallNormal != FVector::ZeroVector && CurrentTime - LastWallHitTime > 0.25)
-	{
-		CurrentWallNormal = FVector::ZeroVector;
-		UGameplayStatics::PlaySoundAtLocation(this, PeelOffSound, GetActorLocation() - FVector(0, 0, GetCapsuleComponent()->GetScaledCapsuleHalfHeight()));
-	}
+	TickGrinding(DeltaTime);
+
+	////Check if we have "peeled off" of a wall
+	//if (CurrentWallNormal != FVector::ZeroVector && CurrentTime - LastWallHitTime > 0.25)
+	//{
+	//	CurrentWallNormal = FVector::ZeroVector;
+	//	UGameplayStatics::PlaySoundAtLocation(this, PeelOffSound, GetActorLocation() - FVector(0, 0, GetCapsuleComponent()->GetScaledCapsuleHalfHeight()));
+	//}
 
 	//Set "previous" variables for next tick
 	PreviousLocation = GetActorLocation();
@@ -356,6 +424,8 @@ void AJetBotCharacter::NotifyHit(class UPrimitiveComponent * MyComp, AActor * Ot
 
 void AJetBotCharacter::OnCapsuleComponentHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, FHitResult Hit)
 {
+
+	//Check if we hit a wall #HitWall
 	if (!GetCharacterMovement()->IsWalkable(Hit))
 	{
 		//If we hit an obstacle that is not walkable, try to project our velocity to slide along the surface of that obstacle
@@ -384,69 +454,57 @@ void AJetBotCharacter::OnCapsuleComponentHit(UPrimitiveComponent* HitComponent, 
 					}
 				}
 
-				
-				
-
 				LaunchCharacter(NewVelocity, true, true);
 				//GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Yellow, Hit.Normal.ToString());
-				//GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Yellow, FString(TEXT(">/")));
+				GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Yellow, FString(TEXT(">/")));
+
+				if (bWantsToGrind)
+				{
+					bIsGrinding = true;
+					GetWorldTimerManager().ClearTimer(GrindTimer);
+					/*bWantsToJump = false;*/
+				}
 			}
 
 			GetCharacterMovement()->SetMovementMode(MOVE_Falling);
 			CurrentFloorNormal = FVector::ZeroVector;
 			CurrentWallNormal = Hit.Normal;
 
+			if (bWantsToGrind)
+			{
+				bIsGrinding = true;
+				GetWorldTimerManager().ClearTimer(GrindTimer);
+			}
+
+			RunningOnActor = Hit.GetActor();
+
 			const float CurrentTime = GetWorld()->GetTimeSeconds();
 			LastWallHitTime = CurrentTime;
 		}
 	}
 
-	//CheckHitWall(Hit);
 }
 
-bool AJetBotCharacter::CheckHitWall(FHitResult& Hit)
+void AJetBotCharacter::OnWallRunCapsuleEndOverlap(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
 {
-
-	/*const float PreviousSpeed = RealVelocity.Size();*/
-
-	if (!GetCharacterMovement()->IsWalkable(Hit))
+	GEngine->AddOnScreenDebugMessage(-1, 1.0, FColor::Yellow, FString(TEXT("OffWall")));
+	
+	if (CurrentWallNormal != FVector::ZeroVector && RunningOnActor != nullptr && RunningOnActor == OtherActor)
 	{
-		//If we hit an obstacle that is not walkable, try to project our velocity to slide along the surface of that obstacle
+		CurrentWallNormal = FVector::ZeroVector;
 
-		if (Hit.Normal != CurrentFloorNormal && !FMath::IsNearlyEqual(Hit.Normal.Z, 1.0f, 0.02f))
-		{
-			if (GetCharacterMovement()->MovementMode != EMovementMode::MOVE_Falling || CurrentWallNormal == FVector::ZeroVector)
-			{
-				const FVector NewVelocity = FVector::VectorPlaneProject(RealVelocity, Hit.Normal);
-				//const float NewSpeed = NewVelocity.Size();
+		RunningOnActor = nullptr;
 
-				//const float DeltaSpeed = NewSpeed - PreviousSpeed;
-
-				////Check for collision damage
-				//if (DeltaSpeed > 4000.0f)
-				//{
-				//	TSubclassOf<UDamageType> DamageType;
-				//	UGameplayStatics::ApplyDamage(this, DeltaSpeed * 100.0f, nullptr, this, DamageType);
-				//}
-
-
-
-				LaunchCharacter(NewVelocity, true, true);
-				GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Yellow, Hit.Normal.ToString());
-				GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Yellow, FString(TEXT(">/")));
-				return true;
-			}
-
-			GetCharacterMovement()->SetMovementMode(MOVE_Falling);
-			CurrentFloorNormal = FVector::ZeroVector;
-			CurrentWallNormal = Hit.Normal;
-
-			const float CurrentTime = GetWorld()->GetTimeSeconds();
-			LastWallHitTime = CurrentTime;
-		}
+		UGameplayStatics::PlaySoundAtLocation(this, PeelOffSound, GetActorLocation() - FVector(0, 0, GetCapsuleComponent()->GetScaledCapsuleHalfHeight()));
 	}
+}
 
-	return false;
+void AJetBotCharacter::SetNotGrinding()
+{
+	if (!bWantsToJump && CurrentWallNormal == FVector::ZeroVector)
+	{
+		bIsGrinding = false;
+	}
 }
 
 void AJetBotCharacter::TickRealVelocity(const float DeltaTime)
@@ -470,6 +528,29 @@ void AJetBotCharacter::TickRealVelocity(const float DeltaTime)
 void AJetBotCharacter::TickJets(const float DeltaTime)
 {
 	
+}
+
+void AJetBotCharacter::TickGrinding(const float DeltaTime)
+{
+	//#WallRun #Grinding
+	//If wallrunning, Zero Z velocity, constrain wall movement (if less than zero)
+	if (CurrentWallNormal != FVector::ZeroVector && bIsGrinding)
+	{
+		GetCharacterMovement()->Velocity = FVector::VectorPlaneProject(GetCharacterMovement()->Velocity, CurrentWallNormal);
+
+		if (GetCharacterMovement()->Velocity.Z < 0.0f)
+		{
+			if (FMath::Abs(GetCharacterMovement()->Velocity.Z) < 100.0f)
+			{
+				GetCharacterMovement()->Velocity.Z = 0.0f;
+			}
+			else
+			{
+				GetCharacterMovement()->AddImpulse(InputVectors::Up*JetImpulseScale*DeltaTime, true);
+			}
+			//GetCharacterMovement()->Velocity.Z = 0.0f;
+		}
+	}
 }
 
 bool AJetBotCharacter::IsUsingAilerons()
@@ -609,7 +690,7 @@ void AJetBotCharacter::TickSounds(float DeltaTime)
 				RollSoundPlayer->Play();
 			}
 		}
-		else if (CurrentWallNormal != FVector::ZeroVector)
+		else if (CurrentWallNormal != FVector::ZeroVector && bIsGrinding)
 		{
 			if (RollSoundPlayer->Sound != RollWallSound)
 			{
@@ -645,6 +726,8 @@ void AJetBotCharacter::Landed(const FHitResult & Hit)
 		CurrentWallNormal = FVector::ZeroVector;
 		bLanded = true;
 		LastLandingTime = CurrentTime;
+
+		bIsGrinding = false;
 
 		if (!LandAudioComp || (LandAudioComp && !LandAudioComp->IsPlaying()))
 		{

@@ -60,11 +60,27 @@ protected:
 	UFUNCTION(BlueprintCallable, Category = "Input")
 	void SetJump(bool bInWantsToJump);
 
+	UFUNCTION(BlueprintCallable, Category = "Input")
+	void SetGrind(bool bInWantsToGrind);
+
 	//Collision function
 	UFUNCTION(BlueprintCallable, Category = "Collision")
 	void OnCapsuleComponentHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, FHitResult Hit);
 
-	bool CheckHitWall(FHitResult& Hit);
+	//Collision function
+	UFUNCTION(BlueprintCallable, Category = "Collision")
+	void OnWallRunCapsuleEndOverlap(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
+
+	//The If JetBot is wallrunning
+	UPROPERTY(Transient, BlueprintReadOnly)
+	bool bIsGrinding;
+
+	FTimerHandle GrindTimer;
+
+	void SetNotGrinding();
+
+	UPROPERTY(Transient, BlueprintReadOnly)
+	AActor* RunningOnActor;
 
 	//Transient variables
 	UPROPERTY(Transient, BlueprintReadOnly)
@@ -81,6 +97,9 @@ protected:
 
 	UPROPERTY(Transient, BlueprintReadOnly)
 	bool bWantsToJump = false;
+
+	UPROPERTY(Transient, BlueprintReadOnly)
+	bool bWantsToGrind = false;
 
 	UPROPERTY(Transient, BlueprintReadOnly)
 	bool bWantsToJet = false;
@@ -215,6 +234,9 @@ protected:
 	//Add a jet booster impulse
 	void TickJets(const float DeltaTime);
 
+	//Add an impulse from riding a rail/wall
+	void TickGrinding(const float DeltaTime);
+
 	//Update our floor
 	void TickCharacterFloor();
 
@@ -248,6 +270,9 @@ public:
 
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Collision")
+	UCapsuleComponent* WallRunCapsule;
 
 	virtual void OnWalkingOffLedge_Implementation
 	(

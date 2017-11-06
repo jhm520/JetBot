@@ -7,6 +7,8 @@
 #include "JetBotObstacle.generated.h"
 
 class UBoxComponent;
+class USplineComponent;
+
 UCLASS()
 class JETBOT_API AJetBotObstacle : public AActor
 {
@@ -41,5 +43,11 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Spawning")
 	FRotator GetRandomSpawnRotation();
+
+	UPROPERTY(BlueprintReadWrite, Category = "Obstacle")
+	TArray<USplineComponent*> GrindSplines;
+
+	//Find the spline closest to this location within a specified MaxDistance (pass in 0.0f for no maximum)
+	USplineComponent* FindGrindSplineClosestToLocation(const FVector& InLocation, const float InMaxDistance);
 	
 };

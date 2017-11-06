@@ -6,6 +6,8 @@
 #include "JetBotLibrary.h"
 #include "TimerManager.h"
 #include "Kismet/GameplayStatics.h"
+#include "Components/SplineComponent.h"
+#include "JetBotObstacle.h"
 
 namespace InputVectors
 {
@@ -22,9 +24,9 @@ AJetBotCharacter::AJetBotCharacter(const FObjectInitializer& ObjectInitializer) 
  	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 
-	WallRunCapsule = CreateDefaultSubobject<UCapsuleComponent>(FName(TEXT("WallRunCapsule")));
+	GrindCapsule = CreateDefaultSubobject<UCapsuleComponent>(FName(TEXT("WallRunCapsule")));
 	FAttachmentTransformRules AttachRules = FAttachmentTransformRules(EAttachmentRule::KeepRelative, EAttachmentRule::KeepRelative, EAttachmentRule::KeepRelative, false);
-	WallRunCapsule->AttachToComponent(GetRootComponent(), AttachRules);
+	GrindCapsule->AttachToComponent(GetRootComponent(), AttachRules);
 
 	//ColorBlock = CreateDefaultSubobject<UStaticMeshComponent>(FName(TEXT("ColorBlock")));
 
@@ -35,37 +37,36 @@ void AJetBotCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
-	TickCharacterFloor();
+	DefaultGroundFriction = GetCharacterMovement()->GroundFriction;
 
 	DefaultWalkableFloorAngle = GetCharacterMovement()->GetWalkableFloorAngle();
 	DefaultWalkableFloorZ = GetCharacterMovement()->GetWalkableFloorZ();
-
-	RollSoundPlayer = UGameplayStatics::SpawnSoundAttached(RollSound, GetRootComponent(), NAME_None, GetActorLocation(), EAttachLocation::KeepRelativeOffset, true, 1.0f, 1.0f, 0.0f, nullptr, nullptr, false);
-	if (RollSoundPlayer)
-	{
-		RollSoundPlayer->Sound = RollSound;
-		RollSoundPlayer->Stop();
-	}
 	
-	WindSoundPlayer = UGameplayStatics::SpawnSoundAttached(WindSound, GetRootComponent(), NAME_None, GetActorLocation(), EAttachLocation::KeepRelativeOffset, true, 1.0f, 1.0f, 0.0f, nullptr, nullptr, false);
-	if (WindSoundPlayer)
+	TSubclassOf<UActorComponent> FeetComponentClass = USceneComponent::StaticClass();
+
+	TArray<UActorComponent*> FeetComponents = GetComponentsByTag(FeetComponentClass, FName(TEXT("FeetComponent")));
+
+	if (FeetComponents.Num() > 0)
 	{
-		WindSoundPlayer->Sound = WindSound;
-		WindSoundPlayer->Stop();
+		FeetComponent = Cast<USceneComponent>(FeetComponents[0]);
 	}
 
-	JetSoundPlayer = UGameplayStatics::SpawnSoundAttached(JetSound, GetRootComponent(), NAME_None, GetActorLocation(), EAttachLocation::KeepRelativeOffset, true, 1.0f, 1.0f, 0.0f, nullptr, nullptr, false);
+	TickCharacterFloor();
 
-	if (JetSoundPlayer)
-	{
-		JetSoundPlayer->Sound = JetSound;
-		JetSoundPlayer->Stop();
-	}
+	InitializeSoundPlayers();
 }
 
 void AJetBotCharacter::SetMoveForward(bool bInMove)
 {
 	SetMoveInput(bInMove, bWantsToMoveForward, InputVectors::Forward);
+}
+
+void AJetBotCharacter::SetMoveForwardAxis(float InMoveForwardAxis)
+{
+	if (!(bWantsToMoveForward || bWantsToMoveBackward))
+	{
+		InputVector.X = InMoveForwardAxis;
+	}
 }
 
 void AJetBotCharacter::SetMoveBackward(bool bInMove)
@@ -83,6 +84,14 @@ void AJetBotCharacter::SetMoveRight(bool bInMove)
 	SetMoveInput(bInMove, bWantsToMoveRight, InputVectors::Right);
 }
 
+void AJetBotCharacter::SetMoveRightAxis(float InMoveRightAxis)
+{
+	if (!(bWantsToMoveRight || bWantsToMoveLeft))
+	{
+		InputVector.Y = InMoveRightAxis;
+	}
+}
+
 void AJetBotCharacter::SetJet(const bool bInWantsToJet)
 {
 	if (bInWantsToJet != bWantsToJet)
@@ -98,18 +107,14 @@ void AJetBotCharacter::SetJetAxis(const float InJetAxis)
 	{
 		JetScale = InJetAxis;
 	}
-	
-	/*if (!bWantsToJet)
+}
+
+void AJetBotCharacter::SetBrakeAxis(const float InBrakeAxis)
+{
+	if (!bWantsToBrake)
 	{
-		if (JetScale > 0.01)
-		{
-			bWantsToJet = true;
-		}
-		else
-		{
-			bWantsToJet = false;
-		}
-	}*/
+		BrakeScale = InBrakeAxis;
+	}
 }
 
 void AJetBotCharacter::ChangeColor()
@@ -120,13 +125,6 @@ void AJetBotCharacter::ChangeColor()
 	{
 		MaterialIndex = 0;
 	}
-
-	/*if (!MaterialsArray[MaterialIndex].IsValidLowLevel())
-	{
-		return;
-	}*/
-
-	//ColorBlock->SetMaterial(0, MaterialsArray[MaterialIndex]);
 }
 
 void AJetBotCharacter::SetAilerons(const bool bInAilerons)
@@ -188,7 +186,7 @@ void AJetBotCharacter::SetJump(bool bInWantsToJump)
 		else
 		{
 			bool bJumped = false;
-			if (CurrentFloorNormal != FVector::ZeroVector || CurrentWallNormal != FVector::ZeroVector)
+			if (GrindingOnSpline || CurrentFloorNormal != FVector::ZeroVector || CurrentWallNormal != FVector::ZeroVector)
 			{
 				UGameplayStatics::PlaySoundAtLocation(this, JumpSound, GetActorLocation() - FVector(0, 0, GetCapsuleComponent()->GetScaledCapsuleHalfHeight()));
 				bJumped = true;
@@ -198,15 +196,37 @@ void AJetBotCharacter::SetJump(bool bInWantsToJump)
 			{
 				GetCharacterMovement()->SetMovementMode(MOVE_Falling);
 
-				//FVector JumpDirection = MoveDirection;
-
 				FVector JumpDirection = FVector(0, 0, 1);
 
 
-				// If we are on a floor
-				if (CurrentFloorNormal != FVector::ZeroVector)
+				// If we are grinding a rail
+				if (GrindingOnSpline != nullptr && FeetComponent != nullptr)
 				{
-					JumpDirection += CurrentFloorNormal;
+					JumpDirection = GetActorLocation() - GrindingOnSpline->FindLocationClosestToWorldLocation(GetActorLocation(), ESplineCoordinateSpace::World);
+
+					JumpDirection.Normalize();
+					/*GetCharacterMovement()->Velocity = RealVelocity + JumpDirection*GetCharacterMovement()->JumpZVelocity;*/
+
+					//GetCharacterMovement()->Velocity = RealVelocity + JumpDirection*GetCharacterMovement()->JumpZVelocity;
+
+					JumpDirection.Z = FMath::Max(CurrentWallNormal.Z, 0.8f);
+
+					GetCharacterMovement()->Velocity += JumpDirection*GetCharacterMovement()->JumpZVelocity;
+
+					/*if (GetCharacterMovement()->Velocity.Z < 0.0f)
+					{
+						GetCharacterMovement()->Velocity.Z = 0.0f;
+					}*/
+					GEngine->AddOnScreenDebugMessage(-1, 1.0, FColor::Yellow, FString(TEXT("_-_")));
+					GrindingOnSpline = nullptr;
+
+					bIsTryingToGrind = false;
+					GetWorldTimerManager().ClearTimer(GrindTimer);
+				}
+				// If we are on a floor
+				else if (CurrentFloorNormal != FVector::ZeroVector)
+				{
+					JumpDirection = CurrentFloorNormal;
 					JumpDirection.Normalize();
 					/*GetCharacterMovement()->Velocity = RealVelocity + JumpDirection*GetCharacterMovement()->JumpZVelocity;*/
 
@@ -237,6 +257,7 @@ void AJetBotCharacter::SetJump(bool bInWantsToJump)
 
 					GetCharacterMovement()->Velocity.Z += GetCharacterMovement()->JumpZVelocity*FMath::Max(CurrentWallNormal.Z, 0.8f);
 
+					GEngine->AddOnScreenDebugMessage(-1, 1.0, FColor::Yellow, FString(TEXT("</")));
 					//bIsGrinding = false;
 					bIsGrinding = false;
 				}
@@ -256,24 +277,18 @@ void AJetBotCharacter::SetGrind(bool bInWantsToGrind)
 
 		if (bWantsToGrind)
 		{
-			if (CurrentWallNormal != FVector::ZeroVector && !bIsGrinding)
-			{
-				bIsGrinding = true;
-				bWantsToGrind = false;
-			}
-			else if (!bIsGrinding && CurrentFloorNormal == FVector::ZeroVector)
-			{
-				bIsGrinding = true;
-				bWantsToGrind = false;
-				GetWorldTimerManager().SetTimer(GrindTimer, this, &AJetBotCharacter::SetNotGrinding, 0.5f, false);
-			}
+			bIsTryingToGrind = true;
+			bWantsToGrind = false;
+			GetWorldTimerManager().SetTimer(GrindTimer, this, &AJetBotCharacter::SetNotTryingToGrind, 0.5f, false);	
 		}
 		else
 		{
-			if (bIsGrinding)
+			if (GrindingOnSpline)
 			{
 				GetWorldTimerManager().ClearTimer(GrindTimer);
-				bIsGrinding = false;
+				bIsTryingToGrind = false;
+				GEngine->AddOnScreenDebugMessage(-1, 1.0, FColor::Yellow, FString(TEXT("_-_")));
+				GrindingOnSpline = nullptr;
 			}
 		}
 	}
@@ -286,12 +301,6 @@ void AJetBotCharacter::Tick(float DeltaTime)
 
 	TickRealVelocity(DeltaTime);
 
-	//Clamp velocity to maximum
-	if (GetCharacterMovement()->Velocity.Size() > GetCharacterMovement()->MaxWalkSpeed)
-	{
-		GetCharacterMovement()->Velocity = GetCharacterMovement()->Velocity.GetClampedToMaxSize(GetCharacterMovement()->MaxWalkSpeed);
-	}
-
 	const float CurrentTime = GetWorld()->GetTimeSeconds();
 
 	//Update our floor, adjust our velocity accordingly
@@ -300,110 +309,21 @@ void AJetBotCharacter::Tick(float DeltaTime)
 		TickCharacterFloor();
 	}
 
-	//Add steering impulse from "leaning", implemented in blueprints
-	//TickLeaning(DeltaTime);
-
-
-	//Add "ailerons" steering impulse. Not sure if I want to use this or not
-
-	/*if (bWantsToAilerons && CurrentFloorNormal != FVector::ZeroVector && CurrentWallNormal == FVector::ZeroVector)
-	{
-		TickAilerons(DeltaTime);
-	}*/
-
 	//Update our looping sounds
 	TickSounds(DeltaTime);
 
-	//if we aren't in VR mode, update move direction here
+	//Add movement input
+	TickMovementInput(DeltaTime);
 
-	if (!bIsVR)
-	{
-		//Add horizontal movement input
-		MoveDirection = InputVector.RotateAngleAxis(GetActorRotation().Yaw, InputVectors::Up);
-		//MoveDirection.Normalize();
-	}
-	
-	JetDirection = MoveDirection;
-
-	AddMovementInput(MoveDirection);
-
-	//Add friction if below a certain speed
-	if (GetCharacterMovement()->Velocity.Size() < 500.0f)
-	{
-		GetCharacterMovement()->GroundFriction = 8.0f;
-	}
-	else if (GetCharacterMovement()->Velocity.Size() < 1000.0f)
-	{
-
-		//GetCharacterMovement()->GroundFriction = FMath::Sin((3.141592f/2.0f) * (1 - (GetCharacterMovement()->Velocity.Size() - 500.0f)/500.0f)) * 8.0f;
-		GetCharacterMovement()->GroundFriction = (1 - ((GetCharacterMovement()->Velocity.Size() - 500.0f) / 500.0f)) * 8.0f;
-	}
-	else
-	{
-		GetCharacterMovement()->GroundFriction = 0.0f;
-	}
-
-	/*if (CurrentWallNormal != FVector::ZeroVector)
-	{
-		GetCharacterMovement()->FallingLateralFriction = 1.0f;
-	}
-	else
-	{
-		GetCharacterMovement()->FallingLateralFriction = 0.0f;
-	}*/
-
-	/*if (GetCharacterMovement()->Velocity.Size() < 1000.0f)
-	{
-		GetCharacterMovement()->AirControl = 0.2f;
-	}
-	else
-	{
-		GetCharacterMovement()->AirControl = 1.0f;
-	}*/
-
-	/*if (CurrentFloorNormal == FVector::ZeroVector)
-	{	
-		GetCharacterMovement()->MaxWalkSpeed = GetCharacterMovement()->Velocity.Size();
-	}
-	else
-	{
-		GetCharacterMovement()->MaxWalkSpeed = 2000.0f;
-	}*/
-
+	TickBrakes(DeltaTime);
 
 	//Add jet impulse
-	if (bWantsToJet || JetScale > 0.01f)
-	{
-		TickJets(DeltaTime);
-		/*if (JetDirection != FVector::ZeroVector && GetCharacterMovement()->Velocity.Size() > GetCharacterMovement()->MaxWalkSpeed)
-		{
-			JetDirection -= LateralVelocity.GetSafeNormal();
-		}*/
+	TickJets(DeltaTime);
 
-		GetCharacterMovement()->AddImpulse(JetDirection*JetImpulseScale*JetScale*DeltaTime, true);
-	}
-	
-	//Add "rolling" impulse from our floor
-	if (CurrentFloorNormal != FVector::ZeroVector)
-	{
-		if (CurrentFloorNormal.Z < 1.0f)
-		{
-			const FVector RollingNormal = FVector(CurrentFloorNormal.X * -1.0f, CurrentFloorNormal.Y * -1.0f, CurrentFloorNormal.Z);
-
-			const FVector RollingImpulse = RollingNormal * GetCharacterMovement()->GetGravityZ() * DeltaTime; 
-
-			GetCharacterMovement()->AddImpulse(RollingImpulse.ProjectOnTo(RealVelocity), true);
-		}
-	}
+	//Add floor slope impulse
+	TickRolling(DeltaTime);
 
 	TickGrinding(DeltaTime);
-
-	////Check if we have "peeled off" of a wall
-	//if (CurrentWallNormal != FVector::ZeroVector && CurrentTime - LastWallHitTime > 0.25)
-	//{
-	//	CurrentWallNormal = FVector::ZeroVector;
-	//	UGameplayStatics::PlaySoundAtLocation(this, PeelOffSound, GetActorLocation() - FVector(0, 0, GetCapsuleComponent()->GetScaledCapsuleHalfHeight()));
-	//}
 
 	//Set "previous" variables for next tick
 	PreviousLocation = GetActorLocation();
@@ -469,27 +389,32 @@ void AJetBotCharacter::OnCapsuleComponentHit(UPrimitiveComponent* HitComponent, 
 					}
 				}
 
+				const FVector PerpindicularVelocity = RealVelocity.ProjectOnTo(Hit.Normal);
+
+				const float WallHitVolume = 1.0f * (FMath::Min(GetCharacterMovement()->MaxWalkSpeed, PerpindicularVelocity.Size()) / GetCharacterMovement()->MaxWalkSpeed);
+				UGameplayStatics::PlaySoundAtLocation(this, WallHitSound, Hit.Location, WallHitVolume);
+
 				LaunchCharacter(NewVelocity, true, true);
 				//GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Yellow, Hit.Normal.ToString());
 				GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Yellow, FString(TEXT(">/")));
 
-				if (bWantsToGrind)
-				{
-					bIsGrinding = true;
-					GetWorldTimerManager().ClearTimer(GrindTimer);
-					/*bWantsToJump = false;*/
-				}
+				//if (bIsTryingToGrind)
+				//{
+				//	bIsGrinding = true;
+				//	GetWorldTimerManager().ClearTimer(GrindTimer);
+				//	/*bWantsToJump = false;*/
+				//}
 			}
 
 			GetCharacterMovement()->SetMovementMode(MOVE_Falling);
 			CurrentFloorNormal = FVector::ZeroVector;
 			CurrentWallNormal = Hit.Normal;
 
-			if (bWantsToGrind)
+			/*if (bIsTryingToGrind)
 			{
 				bIsGrinding = true;
 				GetWorldTimerManager().ClearTimer(GrindTimer);
-			}
+			}*/
 
 			RunningOnActor = Hit.GetActor();
 
@@ -500,25 +425,48 @@ void AJetBotCharacter::OnCapsuleComponentHit(UPrimitiveComponent* HitComponent, 
 
 }
 
-void AJetBotCharacter::OnWallRunCapsuleEndOverlap(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
+void AJetBotCharacter::OnGrindCapsuleBeginOverlap(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, FHitResult SweepResult)
 {
-	GEngine->AddOnScreenDebugMessage(-1, 1.0, FColor::Yellow, FString(TEXT("OffWall")));
-	
-	if (CurrentWallNormal != FVector::ZeroVector && RunningOnActor != nullptr && RunningOnActor == OtherActor)
+	if (!RunningOnObstacle)
 	{
-		CurrentWallNormal = FVector::ZeroVector;
-
-		RunningOnActor = nullptr;
-
-		UGameplayStatics::PlaySoundAtLocation(this, PeelOffSound, GetActorLocation() - FVector(0, 0, GetCapsuleComponent()->GetScaledCapsuleHalfHeight()));
+		RunningOnObstacle = Cast<AJetBotObstacle>(OtherActor);
+	}
+	else if (OtherActor != RunningOnObstacle)
+	{
+		NextRunningOnObstacle = Cast<AJetBotObstacle>(OtherActor);
 	}
 }
 
-void AJetBotCharacter::SetNotGrinding()
+void AJetBotCharacter::OnGrindCapsuleEndOverlap(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
+{
+	if (OtherActor == RunningOnObstacle)
+	{
+		if (NextRunningOnObstacle)
+		{
+			RunningOnObstacle = NextRunningOnObstacle;
+			NextRunningOnObstacle = nullptr;
+		}
+		else
+		{
+			RunningOnObstacle = nullptr;
+			CurrentWallNormal = FVector::ZeroVector;
+			GrindingOnSpline = nullptr;
+			GEngine->AddOnScreenDebugMessage(-1, 1.0, FColor::Yellow, FString(TEXT("_-_")));
+
+			UGameplayStatics::PlaySoundAtLocation(this, PeelOffSound, GetActorLocation() - FVector(0, 0, GetCapsuleComponent()->GetScaledCapsuleHalfHeight()));
+		}
+	}
+	else if (OtherActor == NextRunningOnObstacle)
+	{
+		NextRunningOnObstacle = nullptr;
+	}
+}
+
+void AJetBotCharacter::SetNotTryingToGrind()
 {
 	if (!bWantsToJump && CurrentWallNormal == FVector::ZeroVector)
 	{
-		bIsGrinding = false;
+		bIsTryingToGrind = false;
 	}
 }
 
@@ -540,31 +488,109 @@ void AJetBotCharacter::TickRealVelocity(const float DeltaTime)
 	}
 }
 
+void AJetBotCharacter::TickMovementInput(const float DeltaTime)
+{
+	if (!bIsVR)
+	{
+		//Add horizontal movement input
+		MoveDirection = InputVector.RotateAngleAxis(GetActorRotation().Yaw, InputVectors::Up);
+	}
+
+	AddMovementInput(MoveDirection);
+}
+
 void AJetBotCharacter::TickJets(const float DeltaTime)
 {
-	
+	if (bWantsToJet || JetScale > 0.01f)
+	{
+		JetDirection = MoveDirection;
+
+		JetDirection.Z = 1.0f - JetDirection.Size();
+		GetCharacterMovement()->AddImpulse(JetDirection*JetImpulseScale*JetScale*DeltaTime, true);
+	}
+}
+
+void AJetBotCharacter::TickRolling(const float DeltaTime)
+{
+	//Add "rolling" impulse from our floor
+	if (CurrentFloorNormal != FVector::ZeroVector)
+	{
+		if (CurrentFloorNormal.Z < 1.0f)
+		{
+			const FVector RollingNormal = FVector(CurrentFloorNormal.X * -1.0f, CurrentFloorNormal.Y * -1.0f, CurrentFloorNormal.Z);
+
+			const FVector RollingImpulse = RollingNormal * GetCharacterMovement()->GetGravityZ() * DeltaTime;
+
+			GetCharacterMovement()->AddImpulse(RollingImpulse.ProjectOnTo(RealVelocity), true);
+		}
+	}
+}
+
+void AJetBotCharacter::TickBrakes(const float DeltaTime)
+{
+	GetCharacterMovement()->GroundFriction = BrakeScale*DefaultGroundFriction;
+	GetCharacterMovement()->FallingLateralFriction = BrakeScale*DefaultGroundFriction;
 }
 
 void AJetBotCharacter::TickGrinding(const float DeltaTime)
 {
 	//#WallRun #Grinding
-	//If wallrunning, Zero Z velocity, constrain wall movement (if less than zero)
-	if (CurrentWallNormal != FVector::ZeroVector && bIsGrinding)
-	{
-		GetCharacterMovement()->Velocity = FVector::VectorPlaneProject(GetCharacterMovement()->Velocity, CurrentWallNormal);
 
-		if (GetCharacterMovement()->Velocity.Z < 0.0f)
+	static FVector CurrentRailDirection;
+
+	//If we are trying to find a spline to grind on
+	if (bIsTryingToGrind)
+	{
+		USplineComponent* ClosestGrindableSpline = nullptr;
+
+		if (RunningOnObstacle && FeetComponent)
 		{
-			if (FMath::Abs(GetCharacterMovement()->Velocity.Z) < 100.0f)
-			{
-				GetCharacterMovement()->Velocity.Z = 0.0f;
-			}
-			else
-			{
-				GetCharacterMovement()->AddImpulse(InputVectors::Up*JetImpulseScale*DeltaTime, true);
-			}
-			//GetCharacterMovement()->Velocity.Z = 0.0f;
+			ClosestGrindableSpline = RunningOnObstacle->FindGrindSplineClosestToLocation(FeetComponent->GetComponentLocation(), 100.0f);
 		}
+
+		if (ClosestGrindableSpline)
+		{
+			if (!GrindingOnSpline)
+			{
+				//Hit Rail
+				//Started grinding on a spline
+				GEngine->AddOnScreenDebugMessage(-1, 1.0, FColor::Yellow, FString(TEXT("___")));
+
+				FVector GrindPoint = ClosestGrindableSpline->FindLocationClosestToWorldLocation(FeetComponent->GetComponentLocation(), ESplineCoordinateSpace::World);
+
+				SetActorLocation(GrindPoint - (FeetComponent->GetComponentLocation() - GetActorLocation()));
+
+				CurrentRailDirection = ClosestGrindableSpline->FindDirectionClosestToWorldLocation(FeetComponent->GetComponentLocation(), ESplineCoordinateSpace::World);
+			}
+
+			GrindingOnSpline = ClosestGrindableSpline;
+		}
+		//else
+		//{
+		//	if (GrindingOnSpline)
+		//	{
+		//		//Stopped grinding on a spline
+		//		GEngine->AddOnScreenDebugMessage(-1, 1.0, FColor::Yellow, FString(TEXT("_-_")));
+		//	}
+
+		//	GrindingOnSpline = nullptr;
+		//	GEngine->AddOnScreenDebugMessage(-1, 1.0, FColor::Yellow, FString(TEXT("_-_")));
+		//}
+	}
+
+	if (GrindingOnSpline)
+	{
+		if (CurrentRailDirection != FVector::ZeroVector)
+		{
+			FVector GrindPoint = GrindingOnSpline->FindLocationClosestToWorldLocation(FeetComponent->GetComponentLocation(), ESplineCoordinateSpace::World);
+
+
+			GetCharacterMovement()->Velocity = GetCharacterMovement()->Velocity.ProjectOnTo(CurrentRailDirection);
+		}
+	}
+	else
+	{
+		CurrentRailDirection = FVector::ZeroVector;
 	}
 }
 
@@ -620,6 +646,7 @@ void AJetBotCharacter::TickCharacterFloor()
 	}
 	else
 	{
+
 		CurrentFloorNormal = FVector::ZeroVector;
 	}
 }
@@ -712,12 +739,18 @@ void AJetBotCharacter::TickSounds(float DeltaTime)
 				RollSoundPlayer->Play();
 			}
 		}
-		else if (CurrentWallNormal != FVector::ZeroVector && bIsGrinding)
+		else if (CurrentWallNormal != FVector::ZeroVector)
 		{
-			if (RollSoundPlayer->Sound != RollWallSound)
+			if (bIsGrinding && RollSoundPlayer->Sound != GrindWallSound)
 			{
 				RollSoundPlayer->Stop();
-				RollSoundPlayer->Sound = RollWallSound;
+				RollSoundPlayer->Sound = GrindWallSound;
+			}
+
+			if (!bIsGrinding && RollSoundPlayer->Sound != SlideWallSound)
+			{
+				RollSoundPlayer->Stop();
+				RollSoundPlayer->Sound = SlideWallSound;
 			}
 
 			if (!RollSoundPlayer->IsPlaying())
@@ -731,7 +764,7 @@ void AJetBotCharacter::TickSounds(float DeltaTime)
 		}
 
 		//Jet Sound
-		if (JetScale > 0.0f)
+		if (JetScale > 0.1f)
 		{
 			if (!JetSoundPlayer->IsPlaying())
 			{
@@ -740,8 +773,33 @@ void AJetBotCharacter::TickSounds(float DeltaTime)
 		}
 		else
 		{
-			JetSoundPlayer->Stop();
+			JetSoundPlayer->FadeOut(0.2f, 0.0f);
 		}
+	}
+}
+
+void AJetBotCharacter::InitializeSoundPlayers()
+{
+	RollSoundPlayer = UGameplayStatics::SpawnSoundAttached(RollSound, GetRootComponent(), NAME_None, GetActorLocation(), EAttachLocation::KeepRelativeOffset, true, 1.0f, 1.0f, 0.0f, nullptr, nullptr, false);
+	if (RollSoundPlayer)
+	{
+		RollSoundPlayer->Sound = RollSound;
+		RollSoundPlayer->Stop();
+	}
+
+	WindSoundPlayer = UGameplayStatics::SpawnSoundAttached(WindSound, GetRootComponent(), NAME_None, GetActorLocation(), EAttachLocation::KeepRelativeOffset, true, 1.0f, 1.0f, 0.0f, nullptr, nullptr, false);
+	if (WindSoundPlayer)
+	{
+		WindSoundPlayer->Sound = WindSound;
+		WindSoundPlayer->Stop();
+	}
+
+	JetSoundPlayer = UGameplayStatics::SpawnSoundAttached(JetSound, GetRootComponent(), NAME_None, GetActorLocation(), EAttachLocation::KeepRelativeOffset, true, 1.0f, 1.0f, 0.0f, nullptr, nullptr, false);
+
+	if (JetSoundPlayer)
+	{
+		JetSoundPlayer->Sound = JetSound;
+		JetSoundPlayer->Stop();
 	}
 }
 
@@ -761,8 +819,6 @@ void AJetBotCharacter::Landed(const FHitResult & Hit)
 		CurrentWallNormal = FVector::ZeroVector;
 		bLanded = true;
 		LastLandingTime = CurrentTime;
-
-		bIsGrinding = false;
 
 		if (!LandAudioComp || (LandAudioComp && !LandAudioComp->IsPlaying()))
 		{

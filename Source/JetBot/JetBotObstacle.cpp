@@ -2,7 +2,9 @@
 
 #include "JetBotObstacle.h"
 #include "Components/BoxComponent.h"
+#include "Components/SplineComponent.h"
 #include "WorldCollision.h"
+
 
 // Sets default values
 AJetBotObstacle::AJetBotObstacle(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
@@ -43,6 +45,29 @@ void AJetBotObstacle::BeginPlay()
 {
 	Super::BeginPlay();
 
+	//Find and add SplineComponents
+	TSubclassOf<USplineComponent> SplineClass = USplineComponent::StaticClass();
+
+	TArray<UActorComponent*> SplineActors = GetComponentsByClass(SplineClass);
+
+	for (int32 i = 0; i < SplineActors.Num(); ++i)
+	{
+		UActorComponent* SplineActor = SplineActors[i];
+
+		if (!SplineActor)
+		{
+			continue;
+		}
+
+		USplineComponent* Spline = Cast<USplineComponent>(SplineActor);
+
+		if (!SplineActor)
+		{
+			continue;
+		}
+
+		GrindSplines.Add(Spline);
+	}
 }
 
 // Called every frame
@@ -64,4 +89,32 @@ FRotator AJetBotObstacle::GetRandomSpawnRotation()
 	const float RandYaw = FMath::RandRange(0.0f, SpawnIncrementsNumberRotator.Yaw) * SpawnIncrementsAngleRotator.Yaw;
 
 	return FRotator(RandPitch, RandYaw, RandRoll);
+}
+
+USplineComponent* AJetBotObstacle::FindGrindSplineClosestToLocation(const FVector& InLocation, const float InMaxDistance)
+{
+	USplineComponent* ClosestGrindableSpline = nullptr;
+
+	if (GrindSplines.Num() > 0)
+	{
+		float MinDistance = MAX_FLT;
+
+		for (USplineComponent* Spline : GrindSplines)
+		{
+			const FVector FeetToSpline = Spline->FindLocationClosestToWorldLocation(InLocation, ESplineCoordinateSpace::World) - InLocation;
+
+			const float FeetToSplineSize = FeetToSpline.Size();
+
+			if (MinDistance > FeetToSplineSize)
+			{
+				if (InMaxDistance == 0.0f || (InMaxDistance > 0.0f && FeetToSplineSize < InMaxDistance))
+				{
+					MinDistance = FeetToSplineSize;
+					ClosestGrindableSpline = Spline;
+				}
+			}
+		}
+	}
+
+	return ClosestGrindableSpline;
 }

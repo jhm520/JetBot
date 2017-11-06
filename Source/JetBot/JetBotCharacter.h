@@ -8,6 +8,17 @@
 #include "GameFramework/Character.h"
 #include "JetBotCharacter.generated.h"
 
+class USplineComponent;
+class AJetBotObstacle;
+
+UENUM(BlueprintType)
+enum class EGrindState : uint8
+{
+	None,
+	Wall,
+	Rail
+};
+
 UCLASS()
 class JETBOT_API AJetBotCharacter : public ACharacter
 {
@@ -26,6 +37,9 @@ protected:
 	void SetMoveForward(bool bInMove);
 
 	UFUNCTION(BlueprintCallable, Category = "Input")
+	void SetMoveForwardAxis(float InMoveForwardAxis);
+
+	UFUNCTION(BlueprintCallable, Category = "Input")
 	void SetMoveBackward(bool bInMove);
 
 	UFUNCTION(BlueprintCallable, Category = "Input")
@@ -35,16 +49,25 @@ protected:
 	void SetMoveRight(bool bInMove);
 
 	UFUNCTION(BlueprintCallable, Category = "Input")
+	void SetMoveRightAxis(float InMoveRightAxis);
+
+	UFUNCTION(BlueprintCallable, Category = "Input")
 	virtual void SetJet(const bool bInWantsToJet);
 
 	UFUNCTION(BlueprintCallable, Category = "Input")
 	virtual void SetJetAxis(const float InJetAxis);
 
 	UFUNCTION(BlueprintCallable, Category = "Input")
+	virtual void SetBrakeAxis(const float InBrakeAxis);
+
+	UFUNCTION(BlueprintCallable, Category = "Input")
 	void ChangeColor();
 
 	UPROPERTY(Transient, BlueprintReadWrite)
 	float JetScale;
+
+	UPROPERTY(Transient, BlueprintReadWrite)
+	float BrakeScale;
 
 	UFUNCTION(BlueprintCallable, Category = "Input")
 	void SetAilerons(const bool bInAilerons);
@@ -69,18 +92,38 @@ protected:
 
 	//Collision function
 	UFUNCTION(BlueprintCallable, Category = "Collision")
-	void OnWallRunCapsuleEndOverlap(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
+	void OnGrindCapsuleBeginOverlap(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, FHitResult SweepResult);
 
-	//The If JetBot is wallrunning
+	UFUNCTION(BlueprintCallable, Category = "Collision")
+	void OnGrindCapsuleEndOverlap(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
+
+	//If JetBot is grinding
 	UPROPERTY(Transient, BlueprintReadOnly)
 	bool bIsGrinding;
 
+	//If JetBot is grinding
+	UPROPERTY(Transient, BlueprintReadOnly)
+	EGrindState CurrentGrindState = EGrindState::None;
+
+	//If JetBot is trying to grind
+	UPROPERTY(Transient, BlueprintReadOnly)
+	bool bIsTryingToGrind;
+
 	FTimerHandle GrindTimer;
 
-	void SetNotGrinding();
+	void SetNotTryingToGrind();
 
 	UPROPERTY(Transient, BlueprintReadOnly)
 	AActor* RunningOnActor;
+
+	UPROPERTY(Transient, BlueprintReadOnly)
+	AActor* NextRunningOnActor;
+
+	UPROPERTY(Transient, BlueprintReadOnly)
+	AJetBotObstacle* RunningOnObstacle;
+
+	UPROPERTY(Transient, BlueprintReadOnly)
+	AJetBotObstacle* NextRunningOnObstacle;
 
 	//Transient variables
 	UPROPERTY(Transient, BlueprintReadOnly)
@@ -103,6 +146,9 @@ protected:
 
 	UPROPERTY(Transient, BlueprintReadOnly)
 	bool bWantsToJet = false;
+
+	UPROPERTY(Transient, BlueprintReadOnly)
+	bool bWantsToBrake = false;
 
 	UPROPERTY(Transient, BlueprintReadOnly)
 	bool bWantsToAilerons = false;
@@ -160,6 +206,12 @@ protected:
 
 	UPROPERTY(Transient)
 	int32 MaterialIndex;
+	
+	UPROPERTY(BlueprintReadWrite, Category = "Movement")
+	USceneComponent* FeetComponent;
+
+	UPROPERTY(Transient)
+	USplineComponent* GrindingOnSpline;
 
 	/*UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Mesh")
 	UStaticMeshComponent* ColorBlock;*/
@@ -182,14 +234,19 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Movement")
 	float CollisionDamageSpeedThreshold = 2000.0f;
 
-	float DefaultWalkableFloorAngle = 0.0f;
+	float DefaultWalkableFloorAngle;
 
-	float DefaultWalkableFloorZ = 0.0f;
+	float DefaultWalkableFloorZ;
+
+	float DefaultGroundFriction;
 
 	//Sound
 
 	UPROPERTY(EditDefaultsOnly, Category = "Sound")
 	USoundBase* JumpSound;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Sound")
+	USoundBase* WallHitSound;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Sound")
 	USoundBase* LandSound;
@@ -200,7 +257,10 @@ protected:
 	USoundBase* RollSound;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Sound")
-	USoundBase* RollWallSound;
+	USoundBase* GrindWallSound;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Sound")
+	USoundBase* SlideWallSound;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Sound")
 	UAudioComponent* RollSoundPlayer;
@@ -234,8 +294,16 @@ protected:
 	//Update our "Real Velocity
 	void TickRealVelocity(const float DeltaTime);
 
+	void TickMovementInput(const float DeltaTime);
+
 	//Add a jet booster impulse
 	void TickJets(const float DeltaTime);
+
+	//Add an impulse based on the floor's slope
+	void TickRolling(const float DeltaTime);
+
+	//Add a braking impulse
+	void TickBrakes(const float DeltaTime);
 
 	//Add an impulse from riding a rail/wall
 	void TickGrinding(const float DeltaTime);
@@ -257,6 +325,8 @@ protected:
 	//Update our looping sounds
 	void TickSounds(float DeltaTime);
 
+	void InitializeSoundPlayers();
+
 	FTimerHandle TimerHandle_ZeroFloor;
 
 	bool IsUsingAilerons();
@@ -275,7 +345,7 @@ public:
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Collision")
-	UCapsuleComponent* WallRunCapsule;
+	UCapsuleComponent* GrindCapsule;
 
 	virtual void OnWalkingOffLedge_Implementation
 	(

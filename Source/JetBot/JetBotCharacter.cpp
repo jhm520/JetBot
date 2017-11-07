@@ -271,7 +271,7 @@ void AJetBotCharacter::SetJump(bool bInWantsToJump)
 
 void AJetBotCharacter::SetGrind(bool bInWantsToGrind)
 {
-	if (bInWantsToGrind != bWantsToGrind)
+	/*if (bInWantsToGrind != bWantsToGrind)
 	{
 		bWantsToGrind = bInWantsToGrind;
 
@@ -291,7 +291,7 @@ void AJetBotCharacter::SetGrind(bool bInWantsToGrind)
 				GrindingOnSpline = nullptr;
 			}
 		}
-	}
+	}*/
 }
 
 // Called every frame
@@ -309,9 +309,6 @@ void AJetBotCharacter::Tick(float DeltaTime)
 		TickCharacterFloor();
 	}
 
-	//Update our looping sounds
-	TickSounds(DeltaTime);
-
 	//Add movement input
 	TickMovementInput(DeltaTime);
 
@@ -324,6 +321,9 @@ void AJetBotCharacter::Tick(float DeltaTime)
 	TickRolling(DeltaTime);
 
 	TickGrinding(DeltaTime);
+
+	//Update our looping sounds
+	TickSounds(DeltaTime);
 
 	//Set "previous" variables for next tick
 	PreviousLocation = GetActorLocation();
@@ -348,7 +348,8 @@ void AJetBotCharacter::OnWalkingOffLedge_Implementation(const FVector & Previous
 	if (RealVelocity != FVector::ZeroVector)
 	{
 		GetCharacterMovement()->Velocity = RealVelocity;
-		UGameplayStatics::PlaySoundAtLocation(this, PeelOffSound, GetActorLocation() - FVector(0, 0, GetCapsuleComponent()->GetScaledCapsuleHalfHeight()));
+		const float VolumeMultiplier = FMath::Min(RealVelocity.Size() / 2000.0f, 1.0f);
+		UGameplayStatics::PlaySoundAtLocation(this, PeelOffSound, GetActorLocation() - FVector(0, 0, GetCapsuleComponent()->GetScaledCapsuleHalfHeight()), VolumeMultiplier);
 	}
 }
 
@@ -427,39 +428,71 @@ void AJetBotCharacter::OnCapsuleComponentHit(UPrimitiveComponent* HitComponent, 
 
 void AJetBotCharacter::OnGrindCapsuleBeginOverlap(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, FHitResult SweepResult)
 {
-	if (!RunningOnObstacle)
+	if (!RunningOnActor)
+	{
+		RunningOnActor = OtherActor;
+	}
+	else if (OtherActor != RunningOnActor)
+	{
+		NextRunningOnActor = OtherActor;
+	}
+
+	/*if (!RunningOnObstacle)
 	{
 		RunningOnObstacle = Cast<AJetBotObstacle>(OtherActor);
 	}
 	else if (OtherActor != RunningOnObstacle)
 	{
 		NextRunningOnObstacle = Cast<AJetBotObstacle>(OtherActor);
-	}
+	}*/
 }
 
 void AJetBotCharacter::OnGrindCapsuleEndOverlap(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
 {
-	if (OtherActor == RunningOnObstacle)
+	if (OtherActor == RunningOnActor)
 	{
-		if (NextRunningOnObstacle)
+		if (NextRunningOnActor)
 		{
-			RunningOnObstacle = NextRunningOnObstacle;
-			NextRunningOnObstacle = nullptr;
+			RunningOnActor = NextRunningOnActor;
+			NextRunningOnActor = nullptr;
 		}
 		else
 		{
-			RunningOnObstacle = nullptr;
+			RunningOnActor = nullptr;
 			CurrentWallNormal = FVector::ZeroVector;
 			GrindingOnSpline = nullptr;
-			GEngine->AddOnScreenDebugMessage(-1, 1.0, FColor::Yellow, FString(TEXT("_-_")));
+			/*GEngine->AddOnScreenDebugMessage(-1, 1.0, FColor::Yellow, FString(TEXT("_-_")));
 
-			UGameplayStatics::PlaySoundAtLocation(this, PeelOffSound, GetActorLocation() - FVector(0, 0, GetCapsuleComponent()->GetScaledCapsuleHalfHeight()));
+			UGameplayStatics::PlaySoundAtLocation(this, PeelOffSound, GetActorLocation() - FVector(0, 0, GetCapsuleComponent()->GetScaledCapsuleHalfHeight()));*/
 		}
 	}
-	else if (OtherActor == NextRunningOnObstacle)
+	else if (OtherActor == NextRunningOnActor)
 	{
-		NextRunningOnObstacle = nullptr;
+		NextRunningOnActor = nullptr;
 	}
+
+
+	//if (OtherActor == RunningOnObstacle)
+	//{
+	//	if (NextRunningOnObstacle)
+	//	{
+	//		RunningOnObstacle = NextRunningOnObstacle;
+	//		NextRunningOnObstacle = nullptr;
+	//	}
+	//	else
+	//	{
+	//		RunningOnObstacle = nullptr;
+	//		CurrentWallNormal = FVector::ZeroVector;
+	//		GrindingOnSpline = nullptr;
+	//		/*GEngine->AddOnScreenDebugMessage(-1, 1.0, FColor::Yellow, FString(TEXT("_-_")));
+
+	//		UGameplayStatics::PlaySoundAtLocation(this, PeelOffSound, GetActorLocation() - FVector(0, 0, GetCapsuleComponent()->GetScaledCapsuleHalfHeight()));*/
+	//	}
+	//}
+	//else if (OtherActor == NextRunningOnObstacle)
+	//{
+	//	NextRunningOnObstacle = nullptr;
+	//}
 }
 
 void AJetBotCharacter::SetNotTryingToGrind()
@@ -501,13 +534,40 @@ void AJetBotCharacter::TickMovementInput(const float DeltaTime)
 
 void AJetBotCharacter::TickJets(const float DeltaTime)
 {
+	bool bShouldJet = false;
+	JetDirection = FVector::ZeroVector;
+
 	if (bWantsToJet || JetScale > 0.01f)
 	{
 		JetDirection = MoveDirection;
-
 		JetDirection.Z = 1.0f - JetDirection.Size();
+		JetDirection.Normalize();
+
+		bShouldJet = true;		
+	}
+
+	if (bWantsToJump && CurrentFloorNormal == FVector::ZeroVector)
+	{
+		bShouldJet = true;
+		JetDirection.Z = 1.0f;
+		JetDirection.Normalize();
+
+		if (CurrentWallNormal != FVector::ZeroVector)
+		{
+			JetDirection = FVector::VectorPlaneProject(JetDirection, CurrentWallNormal);
+			JetDirection.Normalize();
+		}
+
+
+		JetScale = 1.0f;
+	}
+
+	if (bShouldJet)
+	{
 		GetCharacterMovement()->AddImpulse(JetDirection*JetImpulseScale*JetScale*DeltaTime, true);
 	}
+
+	//GEngine->AddOnScreenDebugMessage(-1, 1.0, FColor::Yellow, JetDirection.ToString());
 }
 
 void AJetBotCharacter::TickRolling(const float DeltaTime)
@@ -629,7 +689,10 @@ void AJetBotCharacter::TickCharacterFloor()
 						GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Yellow, FString(TEXT("/TT")));
 						LaunchCharacter(PreviousRealVelocity, true, true);
 						CurrentFloorNormal = FVector::ZeroVector;
-						UGameplayStatics::PlaySoundAtLocation(this, PeelOffSound, GetActorLocation() - FVector(0, 0, GetCapsuleComponent()->GetScaledCapsuleHalfHeight()));
+
+						const float VolumeMultiplier = FMath::Min(RealVelocity.Size() / 2000.0f, 1.0f);
+
+						UGameplayStatics::PlaySoundAtLocation(this, PeelOffSound, GetActorLocation() - FVector(0, 0, GetCapsuleComponent()->GetScaledCapsuleHalfHeight()), VolumeMultiplier);
 					}
 				}
 				/*		__/ We hit a steeper slope, project our velocity onto the new slope
@@ -682,7 +745,8 @@ void AJetBotCharacter::TickAilerons(float DeltaTime)
 			GetCharacterMovement()->Velocity = RealVelocity + RealVelocity.ProjectOnTo(CurrentFloorNormal);
 			CurrentFloorNormal = FVector::ZeroVector;
 
-			UGameplayStatics::PlaySoundAtLocation(this, PeelOffSound, GetActorLocation() - FVector(0, 0, GetCapsuleComponent()->GetScaledCapsuleHalfHeight()));
+			const float VolumeMultiplier = FMath::Min(RealVelocity.Size() / 2000.0f, 1.0f);
+			UGameplayStatics::PlaySoundAtLocation(this, PeelOffSound, GetActorLocation() - FVector(0, 0, GetCapsuleComponent()->GetScaledCapsuleHalfHeight()), VolumeMultiplier);
 
 			return;
 		}

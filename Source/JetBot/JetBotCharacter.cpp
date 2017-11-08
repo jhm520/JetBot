@@ -28,8 +28,6 @@ AJetBotCharacter::AJetBotCharacter(const FObjectInitializer& ObjectInitializer) 
 	FAttachmentTransformRules AttachRules = FAttachmentTransformRules(EAttachmentRule::KeepRelative, EAttachmentRule::KeepRelative, EAttachmentRule::KeepRelative, false);
 	GrindCapsule->AttachToComponent(GetRootComponent(), AttachRules);
 
-	//ColorBlock = CreateDefaultSubobject<UStaticMeshComponent>(FName(TEXT("ColorBlock")));
-
 }
 
 // Called when the game starts or when spawned
@@ -41,6 +39,8 @@ void AJetBotCharacter::BeginPlay()
 
 	DefaultWalkableFloorAngle = GetCharacterMovement()->GetWalkableFloorAngle();
 	DefaultWalkableFloorZ = GetCharacterMovement()->GetWalkableFloorZ();
+
+	JetMeter = MaxJetMeter;
 	
 	TSubclassOf<UActorComponent> FeetComponentClass = USceneComponent::StaticClass();
 
@@ -169,24 +169,11 @@ void AJetBotCharacter::SetJump(bool bInWantsToJump)
 			{
 
 			}
-
-			/*if (CurrentWallNormal != FVector::ZeroVector && !bIsGrinding)
-			{
-				bIsGrinding = true;
-				bWantsToJump = false;
-				GetWorldTimerManager().ClearTimer(GrindTimer);
-			}
-			else if (!bIsGrinding && CurrentFloorNormal == FVector::ZeroVector)
-			{
-				bIsGrinding = true;
-
-				GetWorldTimerManager().SetTimer(GrindTimer, this, &AJetBotCharacter::SetNotGrinding, 0.5f, false);
-			}*/
 		}
 		else
 		{
 			bool bJumped = false;
-			if (GrindingOnSpline || CurrentFloorNormal != FVector::ZeroVector || CurrentWallNormal != FVector::ZeroVector)
+			if (CurrentFloorNormal != FVector::ZeroVector || CurrentWallNormal != FVector::ZeroVector)
 			{
 				UGameplayStatics::PlaySoundAtLocation(this, JumpSound, GetActorLocation() - FVector(0, 0, GetCapsuleComponent()->GetScaledCapsuleHalfHeight()));
 				bJumped = true;
@@ -198,68 +185,27 @@ void AJetBotCharacter::SetJump(bool bInWantsToJump)
 
 				FVector JumpDirection = FVector(0, 0, 1);
 
-
-				// If we are grinding a rail
-				if (GrindingOnSpline != nullptr && FeetComponent != nullptr)
-				{
-					JumpDirection = GetActorLocation() - GrindingOnSpline->FindLocationClosestToWorldLocation(GetActorLocation(), ESplineCoordinateSpace::World);
-
-					JumpDirection.Normalize();
-					/*GetCharacterMovement()->Velocity = RealVelocity + JumpDirection*GetCharacterMovement()->JumpZVelocity;*/
-
-					//GetCharacterMovement()->Velocity = RealVelocity + JumpDirection*GetCharacterMovement()->JumpZVelocity;
-
-					JumpDirection.Z = FMath::Max(CurrentWallNormal.Z, 0.8f);
-
-					GetCharacterMovement()->Velocity += JumpDirection*GetCharacterMovement()->JumpZVelocity;
-
-					/*if (GetCharacterMovement()->Velocity.Z < 0.0f)
-					{
-						GetCharacterMovement()->Velocity.Z = 0.0f;
-					}*/
-					GEngine->AddOnScreenDebugMessage(-1, 1.0, FColor::Yellow, FString(TEXT("_-_")));
-					GrindingOnSpline = nullptr;
-
-					bIsTryingToGrind = false;
-					GetWorldTimerManager().ClearTimer(GrindTimer);
-				}
 				// If we are on a floor
-				else if (CurrentFloorNormal != FVector::ZeroVector)
+				if (CurrentFloorNormal != FVector::ZeroVector)
 				{
 					JumpDirection = CurrentFloorNormal;
+					JumpDirection.Z = FMath::Max(CurrentWallNormal.Z, MinWallJumpZ);
 					JumpDirection.Normalize();
-					/*GetCharacterMovement()->Velocity = RealVelocity + JumpDirection*GetCharacterMovement()->JumpZVelocity;*/
+
 
 					GetCharacterMovement()->Velocity = RealVelocity + JumpDirection*GetCharacterMovement()->JumpZVelocity;
-					if (GetCharacterMovement()->Velocity.Z < 0.0f)
-					{
-						GetCharacterMovement()->Velocity.Z = 0.0f;
-					}
-
-					//GetCharacterMovement()->Velocity.Z += GetCharacterMovement()->JumpZVelocity;
 					
 				}
 				//If we are on a wall
 				else if (CurrentWallNormal != FVector::ZeroVector)
 				{
 					JumpDirection = CurrentWallNormal;
+					JumpDirection.Z = FMath::Max(CurrentWallNormal.Z, MinWallJumpZ);
 					JumpDirection.Normalize();
-					/*GetCharacterMovement()->Velocity.X = RealVelocity.X + (JumpDirection*GetCharacterMovement()->JumpZVelocity).X;
-					GetCharacterMovement()->Velocity.Y = RealVelocity.Y + (JumpDirection*GetCharacterMovement()->JumpZVelocity).Y;*/
 
-					GetCharacterMovement()->Velocity.X = RealVelocity.X + (JumpDirection*GetCharacterMovement()->JumpZVelocity).X;
-					GetCharacterMovement()->Velocity.Y = RealVelocity.Y + (JumpDirection*GetCharacterMovement()->JumpZVelocity).Y;
-
-					/*if (GetCharacterMovement()->Velocity.Z < 0.0f)
-					{
-						GetCharacterMovement()->Velocity.Z = 0.0f;
-					}*/
-
-					GetCharacterMovement()->Velocity.Z += GetCharacterMovement()->JumpZVelocity*FMath::Max(CurrentWallNormal.Z, 0.8f);
+					GetCharacterMovement()->Velocity += GetCharacterMovement()->JumpZVelocity*CurrentWallNormal;
 
 					GEngine->AddOnScreenDebugMessage(-1, 1.0, FColor::Yellow, FString(TEXT("</")));
-					//bIsGrinding = false;
-					bIsGrinding = false;
 				}
 
 				CurrentWallNormal = FVector::ZeroVector;
@@ -271,27 +217,7 @@ void AJetBotCharacter::SetJump(bool bInWantsToJump)
 
 void AJetBotCharacter::SetGrind(bool bInWantsToGrind)
 {
-	/*if (bInWantsToGrind != bWantsToGrind)
-	{
-		bWantsToGrind = bInWantsToGrind;
 
-		if (bWantsToGrind)
-		{
-			bIsTryingToGrind = true;
-			bWantsToGrind = false;
-			GetWorldTimerManager().SetTimer(GrindTimer, this, &AJetBotCharacter::SetNotTryingToGrind, 0.5f, false);	
-		}
-		else
-		{
-			if (GrindingOnSpline)
-			{
-				GetWorldTimerManager().ClearTimer(GrindTimer);
-				bIsTryingToGrind = false;
-				GEngine->AddOnScreenDebugMessage(-1, 1.0, FColor::Yellow, FString(TEXT("_-_")));
-				GrindingOnSpline = nullptr;
-			}
-		}
-	}*/
 }
 
 // Called every frame
@@ -384,8 +310,6 @@ void AJetBotCharacter::OnCapsuleComponentHit(UPrimitiveComponent* HitComponent, 
 
 					if (DeltaSpeed < CollisionDamageSpeedThreshold)
 					{
-						/*TSubclassOf<UDamageType> DamageType;
-						UGameplayStatics::ApplyDamage(this, DeltaSpeed * 100.0f, nullptr, this, DamageType);*/
 						GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Yellow, FString(TEXT("X")));
 					}
 				}
@@ -396,26 +320,13 @@ void AJetBotCharacter::OnCapsuleComponentHit(UPrimitiveComponent* HitComponent, 
 				UGameplayStatics::PlaySoundAtLocation(this, WallHitSound, Hit.Location, WallHitVolume);
 
 				LaunchCharacter(NewVelocity, true, true);
-				//GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Yellow, Hit.Normal.ToString());
 				GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Yellow, FString(TEXT(">/")));
 
-				//if (bIsTryingToGrind)
-				//{
-				//	bIsGrinding = true;
-				//	GetWorldTimerManager().ClearTimer(GrindTimer);
-				//	/*bWantsToJump = false;*/
-				//}
 			}
 
 			GetCharacterMovement()->SetMovementMode(MOVE_Falling);
 			CurrentFloorNormal = FVector::ZeroVector;
 			CurrentWallNormal = Hit.Normal;
-
-			/*if (bIsTryingToGrind)
-			{
-				bIsGrinding = true;
-				GetWorldTimerManager().ClearTimer(GrindTimer);
-			}*/
 
 			RunningOnActor = Hit.GetActor();
 
@@ -436,15 +347,6 @@ void AJetBotCharacter::OnGrindCapsuleBeginOverlap(UPrimitiveComponent* HitCompon
 	{
 		NextRunningOnActor = OtherActor;
 	}
-
-	/*if (!RunningOnObstacle)
-	{
-		RunningOnObstacle = Cast<AJetBotObstacle>(OtherActor);
-	}
-	else if (OtherActor != RunningOnObstacle)
-	{
-		NextRunningOnObstacle = Cast<AJetBotObstacle>(OtherActor);
-	}*/
 }
 
 void AJetBotCharacter::OnGrindCapsuleEndOverlap(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
@@ -460,39 +362,12 @@ void AJetBotCharacter::OnGrindCapsuleEndOverlap(UPrimitiveComponent* HitComponen
 		{
 			RunningOnActor = nullptr;
 			CurrentWallNormal = FVector::ZeroVector;
-			GrindingOnSpline = nullptr;
-			/*GEngine->AddOnScreenDebugMessage(-1, 1.0, FColor::Yellow, FString(TEXT("_-_")));
-
-			UGameplayStatics::PlaySoundAtLocation(this, PeelOffSound, GetActorLocation() - FVector(0, 0, GetCapsuleComponent()->GetScaledCapsuleHalfHeight()));*/
 		}
 	}
 	else if (OtherActor == NextRunningOnActor)
 	{
 		NextRunningOnActor = nullptr;
 	}
-
-
-	//if (OtherActor == RunningOnObstacle)
-	//{
-	//	if (NextRunningOnObstacle)
-	//	{
-	//		RunningOnObstacle = NextRunningOnObstacle;
-	//		NextRunningOnObstacle = nullptr;
-	//	}
-	//	else
-	//	{
-	//		RunningOnObstacle = nullptr;
-	//		CurrentWallNormal = FVector::ZeroVector;
-	//		GrindingOnSpline = nullptr;
-	//		/*GEngine->AddOnScreenDebugMessage(-1, 1.0, FColor::Yellow, FString(TEXT("_-_")));
-
-	//		UGameplayStatics::PlaySoundAtLocation(this, PeelOffSound, GetActorLocation() - FVector(0, 0, GetCapsuleComponent()->GetScaledCapsuleHalfHeight()));*/
-	//	}
-	//}
-	//else if (OtherActor == NextRunningOnObstacle)
-	//{
-	//	NextRunningOnObstacle = nullptr;
-	//}
 }
 
 void AJetBotCharacter::SetNotTryingToGrind()
@@ -567,11 +442,11 @@ void AJetBotCharacter::TickJets(const float DeltaTime)
 		GetCharacterMovement()->AddImpulse(JetDirection*JetImpulseScale*JetScale*DeltaTime, true);
 	}
 
-	//GEngine->AddOnScreenDebugMessage(-1, 1.0, FColor::Yellow, JetDirection.ToString());
+	//GEngine->AddOnScreenDebugMessage(-1, 1.0, FColor::Yellow, FString::SanitizeFloat(JetMeter));
 }
 
 void AJetBotCharacter::TickRolling(const float DeltaTime)
-{
+{ 
 	//Add "rolling" impulse from our floor
 	if (CurrentFloorNormal != FVector::ZeroVector)
 	{
@@ -594,64 +469,7 @@ void AJetBotCharacter::TickBrakes(const float DeltaTime)
 
 void AJetBotCharacter::TickGrinding(const float DeltaTime)
 {
-	//#WallRun #Grinding
-
-	static FVector CurrentRailDirection;
-
-	//If we are trying to find a spline to grind on
-	if (bIsTryingToGrind)
-	{
-		USplineComponent* ClosestGrindableSpline = nullptr;
-
-		if (RunningOnObstacle && FeetComponent)
-		{
-			ClosestGrindableSpline = RunningOnObstacle->FindGrindSplineClosestToLocation(FeetComponent->GetComponentLocation(), 100.0f);
-		}
-
-		if (ClosestGrindableSpline)
-		{
-			if (!GrindingOnSpline)
-			{
-				//Hit Rail
-				//Started grinding on a spline
-				GEngine->AddOnScreenDebugMessage(-1, 1.0, FColor::Yellow, FString(TEXT("___")));
-
-				FVector GrindPoint = ClosestGrindableSpline->FindLocationClosestToWorldLocation(FeetComponent->GetComponentLocation(), ESplineCoordinateSpace::World);
-
-				SetActorLocation(GrindPoint - (FeetComponent->GetComponentLocation() - GetActorLocation()));
-
-				CurrentRailDirection = ClosestGrindableSpline->FindDirectionClosestToWorldLocation(FeetComponent->GetComponentLocation(), ESplineCoordinateSpace::World);
-			}
-
-			GrindingOnSpline = ClosestGrindableSpline;
-		}
-		//else
-		//{
-		//	if (GrindingOnSpline)
-		//	{
-		//		//Stopped grinding on a spline
-		//		GEngine->AddOnScreenDebugMessage(-1, 1.0, FColor::Yellow, FString(TEXT("_-_")));
-		//	}
-
-		//	GrindingOnSpline = nullptr;
-		//	GEngine->AddOnScreenDebugMessage(-1, 1.0, FColor::Yellow, FString(TEXT("_-_")));
-		//}
-	}
-
-	if (GrindingOnSpline)
-	{
-		if (CurrentRailDirection != FVector::ZeroVector)
-		{
-			FVector GrindPoint = GrindingOnSpline->FindLocationClosestToWorldLocation(FeetComponent->GetComponentLocation(), ESplineCoordinateSpace::World);
-
-
-			GetCharacterMovement()->Velocity = GetCharacterMovement()->Velocity.ProjectOnTo(CurrentRailDirection);
-		}
-	}
-	else
-	{
-		CurrentRailDirection = FVector::ZeroVector;
-	}
+	//For later, if we want to implement grinding
 }
 
 bool AJetBotCharacter::IsUsingAilerons()

@@ -174,8 +174,17 @@ protected:
 	UPROPERTY(Transient, BlueprintReadWrite)
 	FVector MoveDirection;
 
-	UPROPERTY(Transient, BlueprintReadWrite)
+	UPROPERTY(Transient, BlueprintReadWrite, Category = "Jets")
 	FVector JetDirection;
+
+	UPROPERTY(Transient, BlueprintReadWrite, Category = "Jets")
+	float JetMeter = 100.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Jets")
+	float MaxJetMeter = 100.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Jets")
+	float JetDrainRate = 100.0f;
 
 	UPROPERTY(Transient, BlueprintReadOnly)
 	FVector RealAcceleration = FVector::ZeroVector;
@@ -200,6 +209,9 @@ protected:
 
 	UPROPERTY(Transient)
 	FVector CurrentWallNormal;
+	
+	UPROPERTY(EditDefaultsOnly, Category = "Movement")
+	float MinWallJumpZ = 0.8f;
 
 	UPROPERTY(Transient)
 	float LastWallHitTime;
@@ -210,11 +222,6 @@ protected:
 	UPROPERTY(BlueprintReadWrite, Category = "Movement")
 	USceneComponent* FeetComponent;
 
-	UPROPERTY(Transient)
-	USplineComponent* GrindingOnSpline;
-
-	/*UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Mesh")
-	UStaticMeshComponent* ColorBlock;*/
 
 	UPROPERTY(EditDefaultsOnly, Category = "Material")
 	TArray<UMaterialInstance*> MaterialsArray;
@@ -311,7 +318,7 @@ protected:
 	//Update our floor
 	void TickCharacterFloor();
 
-	//Add a steering impulse based on the lean angle
+	//Add a steering impulse based on the lean angle (we may not implement this)
 	UFUNCTION(BlueprintNativeEvent, Category = "Movement")
 	void TickLeaning(float DeltaTime);
 

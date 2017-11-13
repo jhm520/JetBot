@@ -61,47 +61,39 @@ protected:
 	virtual void SetBrakeAxis(const float InBrakeAxis);
 
 	UFUNCTION(BlueprintCallable, Category = "Input")
-	void ChangeColor();
-
-	UPROPERTY(Transient, BlueprintReadWrite)
-	float JetScale;
-
-	UPROPERTY(Transient, BlueprintReadWrite)
-	float BrakeScale;
-
-	UFUNCTION(BlueprintCallable, Category = "Input")
 	void SetAilerons(const bool bInAilerons);
 
 	void SetMoveInput(const bool bInWantsToMove, bool& bWantsToMove, const FVector InInputVector);
 
 	UFUNCTION(BlueprintCallable, Category = "Input")
-	void OnLookYaw(float YawVal);
+		void OnLookYaw(float YawVal);
 
 	UFUNCTION(BlueprintCallable, Category = "Input")
-	void OnLookPitch(float PitchVal);
-	
+		void OnLookPitch(float PitchVal);
+
 	UFUNCTION(BlueprintCallable, Category = "Input")
-	void SetJump(bool bInWantsToJump);
+		void SetJump(bool bInWantsToJump);
 
 	UFUNCTION(BlueprintCallable, Category = "Input")
 	void SetGrind(bool bInWantsToGrind);
 
-	//Collision function
+	//Collision
 	UFUNCTION(BlueprintCallable, Category = "Collision")
 	void OnCapsuleComponentHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, FHitResult Hit);
 
-	//Collision function
 	UFUNCTION(BlueprintCallable, Category = "Collision")
 	void OnGrindCapsuleBeginOverlap(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, FHitResult SweepResult);
 
 	UFUNCTION(BlueprintCallable, Category = "Collision")
 	void OnGrindCapsuleEndOverlap(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
+	//End Collision
 
-	//If JetBot is grinding
+	//Transient variables
+
 	UPROPERTY(Transient, BlueprintReadOnly)
 	bool bIsGrinding;
 
-	//If JetBot is grinding
+	//What we are grinding on
 	UPROPERTY(Transient, BlueprintReadOnly)
 	EGrindState CurrentGrindState = EGrindState::None;
 
@@ -109,23 +101,30 @@ protected:
 	UPROPERTY(Transient, BlueprintReadOnly)
 	bool bIsTryingToGrind;
 
+	//The amount of time we have to hit something we can grind on, after pressing grind
+	UPROPERTY(EditDefaultsOnly, Category = "Grinding")
+	float GrindLeewayTime = 0.5f;
+
+	//For easy grinding
+	UPROPERTY(Transient)
 	FTimerHandle GrindTimer;
 
 	void SetNotTryingToGrind();
+
+		UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Collision")
+	UCapsuleComponent* GrindCapsule;
+
+	UPROPERTY(Transient, BlueprintReadWrite)
+	float JetScale;
+
+	UPROPERTY(Transient, BlueprintReadWrite)
+	float BrakeScale;
 
 	UPROPERTY(Transient, BlueprintReadOnly)
 	AActor* RunningOnActor;
 
 	UPROPERTY(Transient, BlueprintReadOnly)
 	AActor* NextRunningOnActor;
-
-	UPROPERTY(Transient, BlueprintReadOnly)
-	AJetBotObstacle* RunningOnObstacle;
-
-	UPROPERTY(Transient, BlueprintReadOnly)
-	AJetBotObstacle* NextRunningOnObstacle;
-
-	//Transient variables
 	UPROPERTY(Transient, BlueprintReadOnly)
 	bool bWantsToMoveForward = false;
 
@@ -174,6 +173,11 @@ protected:
 	UPROPERTY(Transient, BlueprintReadWrite)
 	FVector MoveDirection;
 
+	
+
+	//End transient variables
+
+	//#Jets
 	UPROPERTY(Transient, BlueprintReadWrite, Category = "Jets")
 	FVector JetDirection;
 
@@ -186,11 +190,14 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Jets")
 	float JetDrainRate = 100.0f;
 
-	UPROPERTY(Transient, BlueprintReadOnly)
-	FVector RealAcceleration = FVector::ZeroVector;
+	UPROPERTY(EditDefaultsOnly, Category = "Jets")
+	bool bCanJet = true;
+	//#EndJets
 
-	UPROPERTY(Transient, BlueprintReadOnly)
-	FVector PreviousRealAcceleration = FVector::ZeroVector;
+	//#Velocity
+
+	//Update our "Real Velocity
+	void TickRealVelocity(const float DeltaTime);
 
 	UPROPERTY(Transient, BlueprintReadOnly)
 	FVector RealVelocity = FVector::ZeroVector;
@@ -198,17 +205,41 @@ protected:
 	UPROPERTY(Transient, BlueprintReadOnly)
 	FVector PreviousRealVelocity = FVector::ZeroVector;
 
-	UPROPERTY(Transient, BlueprintReadOnly)
-	FVector PreviousVelocity = FVector::ZeroVector;
-
 	UPROPERTY(Transient)
 	FVector PreviousLocation = FVector::ZeroVector;
+
+	//End Velocity
+
+	//#Floor
+
+	float DefaultWalkableFloorAngle;
+
+	float DefaultWalkableFloorZ;
+
+	virtual void OnWalkingOffLedge_Implementation
+	(
+		const FVector & PreviousFloorImpactNormal,
+		const FVector & PreviousFloorContactNormal,
+		const FVector & PreviousLocation,
+		float TimeDelta
+	) override;
+
+	UPROPERTY(Transient)
+	FVector PreviousFloorNormal;
+
+	//Update our floor
+	void TickFloor();
 
 	UPROPERTY(Transient)
 	FVector CurrentFloorNormal;
 
+	//#EndFloor
+
 	UPROPERTY(Transient)
 	FVector CurrentWallNormal;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Movement")
+	float WallJumpXYVelocity = 800.0f;
 	
 	UPROPERTY(EditDefaultsOnly, Category = "Movement")
 	float MinWallJumpZ = 0.8f;
@@ -222,12 +253,8 @@ protected:
 	UPROPERTY(BlueprintReadWrite, Category = "Movement")
 	USceneComponent* FeetComponent;
 
-
 	UPROPERTY(EditDefaultsOnly, Category = "Material")
 	TArray<UMaterialInstance*> MaterialsArray;
-
-	UPROPERTY(Transient)
-	FVector PreviousFloorNormal;
 
 	UPROPERTY(EditDefaultsOnly, Category = "VR")
 	bool bIsVR;
@@ -241,13 +268,39 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Movement")
 	float CollisionDamageSpeedThreshold = 2000.0f;
 
-	float DefaultWalkableFloorAngle;
-
-	float DefaultWalkableFloorZ;
-
 	float DefaultGroundFriction;
 
-	//Sound
+	//Functions
+
+	void TickMovementInput(const float DeltaTime);
+
+	//Add a jet booster impulse
+	void TickJets(const float DeltaTime);
+
+	//Add an impulse based on the floor's slope
+	void TickRolling(const float DeltaTime);
+
+	//Add a braking impulse
+	void TickBrakes(const float DeltaTime);
+
+	//Add an impulse from riding a rail/wall
+	void TickGrinding(const float DeltaTime);
+
+	//Add a steering impulse based on the lean angle (we may not implement this)
+	UFUNCTION(BlueprintNativeEvent, Category = "Movement")
+	void TickLeaning(float DeltaTime);
+
+	//Calculate the angle that our character is leaning based on the current state
+	UFUNCTION(BlueprintImplementableEvent, Category = "Movement")
+	void CalculateLeanAngle();
+
+	//#Sounds
+
+	
+	//Update our looping sounds
+	void TickSounds(float DeltaTime);
+
+	void InitializeSoundPlayers();
 
 	UPROPERTY(EditDefaultsOnly, Category = "Sound")
 	USoundBase* JumpSound;
@@ -296,45 +349,11 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Sound")
 	USoundBase* PeelOffSound;
 
-	//Functions
+	//#EndSound
 
-	//Update our "Real Velocity
-	void TickRealVelocity(const float DeltaTime);
+	//#Ailerons
 
-	void TickMovementInput(const float DeltaTime);
-
-	//Add a jet booster impulse
-	void TickJets(const float DeltaTime);
-
-	//Add an impulse based on the floor's slope
-	void TickRolling(const float DeltaTime);
-
-	//Add a braking impulse
-	void TickBrakes(const float DeltaTime);
-
-	//Add an impulse from riding a rail/wall
-	void TickGrinding(const float DeltaTime);
-
-	//Update our floor
-	void TickCharacterFloor();
-
-	//Add a steering impulse based on the lean angle (we may not implement this)
-	UFUNCTION(BlueprintNativeEvent, Category = "Movement")
-	void TickLeaning(float DeltaTime);
-
-	//Calculate the angle that our character is leaning based on the current state
-	UFUNCTION(BlueprintImplementableEvent, Category = "Movement")
-	void CalculateLeanAngle();
-
-	//Update our velocity to follow the direction of the camera
 	void TickAilerons(float DeltaTime);
-
-	//Update our looping sounds
-	void TickSounds(float DeltaTime);
-
-	void InitializeSoundPlayers();
-
-	FTimerHandle TimerHandle_ZeroFloor;
 
 	bool IsUsingAilerons();
 
@@ -343,6 +362,8 @@ protected:
 	FTimerHandle TimerHandle_EnableAilerons;
 	void EnableAilerons();
 
+	//#EndAilerons
+
 
 public:	
 	// Called every frame
@@ -350,17 +371,6 @@ public:
 
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Collision")
-	UCapsuleComponent* GrindCapsule;
-
-	virtual void OnWalkingOffLedge_Implementation
-	(
-		const FVector & PreviousFloorImpactNormal,
-		const FVector & PreviousFloorContactNormal,
-		const FVector & PreviousLocation,
-		float TimeDelta
-	) override;
 
 	virtual void NotifyHit
 	(

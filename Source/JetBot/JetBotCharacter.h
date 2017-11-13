@@ -129,6 +129,10 @@ protected:
 
 	UPROPERTY(Transient, BlueprintReadOnly)
 	AActor* NextRunningOnActor;
+
+	UPROPERTY(Transient, BlueprintReadOnly)
+	USplineComponent* GrindingOnSpline;
+
 	UPROPERTY(Transient, BlueprintReadOnly)
 	bool bWantsToMoveForward = false;
 
@@ -182,22 +186,30 @@ protected:
 	//End transient variables
 
 	//#Jets
-	UPROPERTY(Transient, BlueprintReadWrite, Category = "Jets")
+	UPROPERTY(Transient, BlueprintReadOnly, Category = "Jets")
 	FVector JetDirection;
 
-	UPROPERTY(Transient, BlueprintReadWrite, Category = "Jets")
+	UPROPERTY(Transient, BlueprintReadOnly, Category = "Jets")
 	float JetMeter = 100.0f;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Jets")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Jets")
 	float MaxJetMeter = 100.0f;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Jets")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Jets")
 	float JetDrainRate = 100.0f;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Jets")
-	float JetRegenRate = 50.0f;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Jets")
+	float JetRegenRate = 100.0f;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Jets")
+	//Time after stopping jets, that the jet meter should start regenerating
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Jets")
+	float JetRegenDelay = 1.0f;
+
+	//Jet Regen timer
+	UPROPERTY(Transient)
+	float JetRegenTimer = 0.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Jets")
 	bool bCanJet = true;
 	//#EndJets
 

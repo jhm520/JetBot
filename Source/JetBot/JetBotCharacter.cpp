@@ -232,9 +232,22 @@ void AJetBotCharacter::SetGrind(bool bInWantsToGrind)
 
 		if (bWantsToGrind)
 		{
+			AJetBotObstacle* RunningOnObstacle = Cast<AJetBotObstacle>(RunningOnActor);
 
-			//See if we are grinding on a wall
-			if (CurrentWallNormal != FVector::ZeroVector)
+			if (RunningOnObstacle && FeetComponent)
+			{
+				GrindingOnSpline = RunningOnObstacle->FindGrindSplineClosestToLocation(FeetComponent->GetComponentLocation(), 50.0f);
+
+			}
+
+			//TODO: Implement rail grinding
+			////if we found an adequate spline to grind on
+			//if (GrindingOnSpline)
+			//{
+			//	CurrentGrindState = EGrindState::Rail;
+			//}
+			////See if we are grinding on a wall
+			/*else */if (CurrentWallNormal != FVector::ZeroVector)
 			{
 				CurrentGrindState = EGrindState::Wall;
 			}
@@ -454,25 +467,35 @@ void AJetBotCharacter::TickJets(const float DeltaTime)
 		if (JetMeter > 0.0f)
 		{
 			GetCharacterMovement()->AddImpulse(JetDirection*JetImpulseScale*JetScale*DeltaTime, true);
-		}
+			JetRegenTimer = 1.0f;
 
-		//Drain jets
-		JetMeter -= JetScale*JetDrainRate*DeltaTime;
+			//Drain jets
+			JetMeter -= JetScale*JetDrainRate*DeltaTime;
 
-		if (JetMeter < 0.0f)
-		{
-			JetMeter = 0.0f;
+			if (JetMeter < 0.0f)
+			{
+				JetMeter = 0.0f;
+			}
 		}
 	}
 	else
 	{
-		//Regenerate jets
-		JetMeter += JetRegenRate*DeltaTime;
+		JetRegenTimer -= DeltaTime;
 
-		if (JetMeter > MaxJetMeter)
+		//if we have waited long enough to regenerate the jets
+		if (JetRegenTimer <= 0.0f)
 		{
-			JetMeter = MaxJetMeter;
+			//Regenerate jets
+			JetMeter += JetRegenRate*DeltaTime;
+
+			if (JetMeter > MaxJetMeter)
+			{
+				JetMeter = MaxJetMeter;
+			}
+
+			JetRegenTimer = 0.0f;
 		}
+		
 	}
 
 	//GEngine->AddOnScreenDebugMessage(-1, 1.0, FColor::Yellow, FString::SanitizeFloat(JetMeter));
@@ -539,6 +562,8 @@ void AJetBotCharacter::TickGrinding(const float DeltaTime)
 {
 	//For later, if we want to implement grinding
 
+
+
 	switch (CurrentGrindState)
 	{
 		case EGrindState::None:
@@ -557,7 +582,10 @@ void AJetBotCharacter::TickGrinding(const float DeltaTime)
 					//Limit our downwards slide by adding an impulse until a threshold, then make downwards velocity constant afterward
 					if (GetCharacterMovement()->Velocity.Z > WallGrindFallingVelocityZ)
 					{
-						GetCharacterMovement()->Velocity.Z = WallGrindFallingVelocityZ;
+						if (JetScale == 0.0f)
+						{
+							GetCharacterMovement()->Velocity.Z = WallGrindFallingVelocityZ;
+						}
 					}
 					else
 					{

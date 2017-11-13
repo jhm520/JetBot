@@ -97,6 +97,10 @@ protected:
 	UPROPERTY(Transient, BlueprintReadOnly)
 	EGrindState CurrentGrindState = EGrindState::None;
 
+	//The downwards Z velocity that will remain constant when grinding on a wall.
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+	float WallGrindFallingVelocityZ = -200.0f;
+
 	//If JetBot is trying to grind
 	UPROPERTY(Transient, BlueprintReadOnly)
 	bool bIsTryingToGrind;
@@ -190,6 +194,9 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Jets")
 	float JetDrainRate = 100.0f;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Jets")
+	float JetRegenRate = 50.0f;
+
 	UPROPERTY(EditDefaultsOnly, Category = "Jets")
 	bool bCanJet = true;
 	//#EndJets
@@ -239,10 +246,10 @@ protected:
 	FVector CurrentWallNormal;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Movement")
-	float WallJumpXYVelocity = 800.0f;
+	float WallJumpXYVelocity = 400.0f;
 	
 	UPROPERTY(EditDefaultsOnly, Category = "Movement")
-	float MinWallJumpZ = 0.8f;
+	float MinWallJumpZ = 1.0f;
 
 	UPROPERTY(Transient)
 	float LastWallHitTime;
@@ -345,6 +352,9 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Sound")
 	UAudioComponent* JetSoundPlayer;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Sound")
+	float JetSoundMinVolume = 0.25f;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Sound")
 	USoundBase* PeelOffSound;

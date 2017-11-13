@@ -433,7 +433,7 @@ void AJetBotCharacter::TickJets(const float DeltaTime)
 		bShouldJet = true;		
 	}
 
-	if (bWantsToJump && CurrentFloorNormal == FVector::ZeroVector)
+	if (bWantsToJump && CurrentFloorNormal == FVector::ZeroVector && CurrentWallNormal == FVector::ZeroVector)
 	{
 		bShouldJet = true;
 		JetDirection.Z = 1.0f;
@@ -451,7 +451,28 @@ void AJetBotCharacter::TickJets(const float DeltaTime)
 
 	if (bShouldJet)
 	{
-		GetCharacterMovement()->AddImpulse(JetDirection*JetImpulseScale*JetScale*DeltaTime, true);
+		if (JetMeter > 0.0f)
+		{
+			GetCharacterMovement()->AddImpulse(JetDirection*JetImpulseScale*JetScale*DeltaTime, true);
+		}
+
+		//Drain jets
+		JetMeter -= JetScale*JetDrainRate*DeltaTime;
+
+		if (JetMeter < 0.0f)
+		{
+			JetMeter = 0.0f;
+		}
+	}
+	else
+	{
+		//Regenerate jets
+		JetMeter += JetRegenRate*DeltaTime;
+
+		if (JetMeter > MaxJetMeter)
+		{
+			JetMeter = MaxJetMeter;
+		}
 	}
 
 	//GEngine->AddOnScreenDebugMessage(-1, 1.0, FColor::Yellow, FString::SanitizeFloat(JetMeter));
@@ -533,9 +554,10 @@ void AJetBotCharacter::TickGrinding(const float DeltaTime)
 
 				if (GetCharacterMovement()->Velocity.Z < 0.0f)
 				{
-					if (GetCharacterMovement()->Velocity.Z > -100.0f)
+					//Limit our downwards slide by adding an impulse until a threshold, then make downwards velocity constant afterward
+					if (GetCharacterMovement()->Velocity.Z > WallGrindFallingVelocityZ)
 					{
-						GetCharacterMovement()->Velocity.Z = 0.0f;
+						GetCharacterMovement()->Velocity.Z = WallGrindFallingVelocityZ;
 					}
 					else
 					{
@@ -680,7 +702,21 @@ void AJetBotCharacter::TickSounds(float DeltaTime)
 		MaxWindSpeed -= WindSoundMinSpeed;
 		WindSoundPlayer->SetVolumeMultiplier(MaxWindSpeed / WindSoundMaxSpeed);
 
-		JetSoundPlayer->SetVolumeMultiplier(JetScale);
+		//Limit Jet volume based on JetMeter 
+		if (JetMeter < MaxJetMeter)
+		{
+			JetSoundPlayer->SetVolumeMultiplier(FMath::Max(JetMeter/MaxJetMeter, JetSoundMinVolume)*JetScale);
+		}
+		else
+		{
+			JetSoundPlayer->SetVolumeMultiplier(JetScale);
+		}
+		/*else
+		{
+			JetSoundPlayer->SetVolumeMultiplier(JetScale);
+		}
+		JetSoundPlayer->SetVolumeMultiplier(JetSoundPlayer
+		FMath::Max(*/
 
 		//Wind sound
 		if (RealVelocity.Size() > WindSoundMinSpeed)
@@ -735,7 +771,7 @@ void AJetBotCharacter::TickSounds(float DeltaTime)
 		}
 
 		//Jet Sound
-		if (JetScale > 0.1f)
+		if (JetScale > 0.1f && JetMeter > 0.0f)
 		{
 			if (!JetSoundPlayer->IsPlaying())
 			{

@@ -97,6 +97,10 @@ protected:
 	UPROPERTY(Transient, BlueprintReadOnly)
 	EGrindState CurrentGrindState = EGrindState::None;
 
+	//The distance from a spline we need to be to grind on it
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Grinding")
+	float GrindDistance = 50.0f;
+
 	//The downwards Z velocity that will remain constant when grinding on a wall.
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
 	float WallGrindFallingVelocityZ = -200.0f;

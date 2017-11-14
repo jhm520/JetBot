@@ -163,7 +163,7 @@ void AJetBotCharacter::SetJump(bool bInWantsToJump)
 		else
 		{
 			bool bJumped = false;
-			if (CurrentFloorNormal != FVector::ZeroVector || CurrentWallNormal != FVector::ZeroVector)
+			if (CurrentFloorNormal != FVector::ZeroVector || CurrentWallNormal != FVector::ZeroVector || CurrentGrindState == EGrindState::Rail)
 			{
 				UGameplayStatics::PlaySoundAtLocation(this, JumpSound, GetActorLocation() - FVector(0, 0, GetCapsuleComponent()->GetScaledCapsuleHalfHeight()));
 				bJumped = true;
@@ -175,8 +175,24 @@ void AJetBotCharacter::SetJump(bool bInWantsToJump)
 
 				FVector JumpDirection = FVector(0, 0, 1);
 
+				//if (CurrentGrindState == EGrindState::Rail)
+				//{
+				//	if (RealVelocity.Z < 0.0f)
+				//	{
+				//		//JumpDirection = CurrentFloorNormal;
+				//		RealVelocity.Z = 0.0f;
+				//	}
+
+				//	CurrentGrindState = EGrindState::None;
+				//	GrindingOnSpline = nullptr;
+				//	bIsTryingToGrind = false;
+
+				//	GetCharacterMovement()->Velocity = RealVelocity + GetCharacterMovement()->JumpZVelocity*JumpDirection;
+
+				//	
+				//}
 				// If we are on a floor
-				if (CurrentFloorNormal != FVector::ZeroVector)
+				/*else */if (CurrentFloorNormal != FVector::ZeroVector)
 				{
 					
 					//JumpDirection.Z = FMath::Max(CurrentWallNormal.Z, MinWallJumpZ);
@@ -187,10 +203,6 @@ void AJetBotCharacter::SetJump(bool bInWantsToJump)
 						//JumpDirection = CurrentFloorNormal;
 						RealVelocity.Z = 0.0f;
 					}
-					///*else
-					//{
-
-					//}*/
 
 					GetCharacterMovement()->Velocity = RealVelocity + GetCharacterMovement()->JumpZVelocity*JumpDirection;
 					
@@ -232,15 +244,7 @@ void AJetBotCharacter::SetGrind(bool bInWantsToGrind)
 
 		if (bWantsToGrind)
 		{
-			AJetBotObstacle* RunningOnObstacle = Cast<AJetBotObstacle>(RunningOnActor);
-
-			if (RunningOnObstacle && FeetComponent)
-			{
-				GrindingOnSpline = RunningOnObstacle->FindGrindSplineClosestToLocation(FeetComponent->GetComponentLocation(), 50.0f);
-
-			}
-
-			//TODO: Implement rail grinding
+			////TODO: Implement rail grinding
 			////if we found an adequate spline to grind on
 			//if (GrindingOnSpline)
 			//{
@@ -446,21 +450,21 @@ void AJetBotCharacter::TickJets(const float DeltaTime)
 		bShouldJet = true;		
 	}
 
-	if (bWantsToJump && CurrentFloorNormal == FVector::ZeroVector && CurrentWallNormal == FVector::ZeroVector)
-	{
-		bShouldJet = true;
-		JetDirection.Z = 1.0f;
-		JetDirection.Normalize();
+	//if (bWantsToJump && CurrentFloorNormal == FVector::ZeroVector && CurrentWallNormal == FVector::ZeroVector)
+	//{
+	//	bShouldJet = true;
+	//	JetDirection.Z = 1.0f;
+	//	JetDirection.Normalize();
 
-		/*if (CurrentWallNormal != FVector::ZeroVector)
-		{
-			JetDirection = FVector::VectorPlaneProject(JetDirection, CurrentWallNormal);
-			JetDirection.Normalize();
-		}*/
+	//	/*if (CurrentWallNormal != FVector::ZeroVector)
+	//	{
+	//		JetDirection = FVector::VectorPlaneProject(JetDirection, CurrentWallNormal);
+	//		JetDirection.Normalize();
+	//	}*/
 
 
-		JetScale = 1.0f;
-	}
+	//	JetScale = 1.0f;
+	//}
 
 	if (bShouldJet)
 	{
@@ -528,6 +532,16 @@ void AJetBotCharacter::OnGrindCapsuleBeginOverlap(UPrimitiveComponent* HitCompon
 	if (!RunningOnActor)
 	{
 		RunningOnActor = OtherActor;
+
+		/*if (FeetComponent)
+		{
+			AJetBotObstacle* RunningOnObstacle = Cast<AJetBotObstacle>(RunningOnActor);
+
+			if (RunningOnObstacle)
+			{
+				GrindingOnSpline = RunningOnObstacle->FindGrindSplineClosestToLocation(FeetComponent->GetComponentLocation(), GrindDistance);
+			}
+		}*/
 	}
 	else if (OtherActor != RunningOnActor)
 	{
@@ -542,11 +556,23 @@ void AJetBotCharacter::OnGrindCapsuleEndOverlap(UPrimitiveComponent* HitComponen
 		if (NextRunningOnActor)
 		{
 			RunningOnActor = NextRunningOnActor;
+
+			/*if (FeetComponent)
+			{
+				AJetBotObstacle* RunningOnObstacle = Cast<AJetBotObstacle>(RunningOnActor);
+
+				if (RunningOnObstacle)
+				{
+					GrindingOnSpline = RunningOnObstacle->FindGrindSplineClosestToLocation(FeetComponent->GetComponentLocation(), GrindDistance);
+				}
+			}*/
+
 			NextRunningOnActor = nullptr;
 		}
 		else
 		{
 			RunningOnActor = nullptr;
+			GrindingOnSpline = nullptr;
 			CurrentWallNormal = FVector::ZeroVector;
 			bIsTryingToGrind = false;
 			CurrentGrindState = EGrindState::None;
@@ -560,15 +586,56 @@ void AJetBotCharacter::OnGrindCapsuleEndOverlap(UPrimitiveComponent* HitComponen
 
 void AJetBotCharacter::TickGrinding(const float DeltaTime)
 {
+	const static FVector FeetComponentOffset = GetActorLocation() - FeetComponent->GetComponentLocation();
+
+	////Check for grindable splines
+	//if (FeetComponent)
+	//{
+	//	AJetBotObstacle* RunningOnObstacle = Cast<AJetBotObstacle>(RunningOnActor);
+
+	//	if (RunningOnObstacle)
+	//	{
+
+	//		USplineComponent* FoundSpline = RunningOnObstacle->FindGrindSplineClosestToLocation(FeetComponent->GetComponentLocation(), GrindDistance);
+
+	//		if (FoundSpline)
+	//		{
+	//			//if this spline is different than the current spline we are grinding on
+	//			if (GrindingOnSpline != FoundSpline)
+	//			{
+	//				SetActorLocation(FoundSpline->FindLocationClosestToWorldLocation(FeetComponent->GetComponentLocation(), ESplineCoordinateSpace::World) + FeetComponentOffset);
+	//			}
+
+	//			GrindingOnSpline = FoundSpline;
+
+	//			if (bIsTryingToGrind)
+	//			{
+	//				CurrentGrindState = EGrindState::Rail;
+	//			}
+	//		}
+	//	}
+	//}
+
 	//For later, if we want to implement grinding
-
-
 
 	switch (CurrentGrindState)
 	{
 		case EGrindState::None:
 		{
 			//Nothing
+			break;
+		}
+		case EGrindState::Rail:
+		{
+			//if (!GrindingOnSpline)
+			//{
+			//	break;
+			//}
+
+			//GetCharacterMovement()->Velocity = GetCharacterMovement()->Velocity.ProjectOnTo(GrindingOnSpline->FindDirectionClosestToWorldLocation(FeetComponent->GetComponentLocation(), ESplineCoordinateSpace::World));
+
+			////SetActorLocation(GrindingOnSpline->FindLocationClosestToWorldLocation(FeetComponent->GetComponentLocation(), ESplineCoordinateSpace::World) + FeetComponentOffset);
+
 			break;
 		}
 		case EGrindState::Wall:
@@ -593,10 +660,6 @@ void AJetBotCharacter::TickGrinding(const float DeltaTime)
 					}
 				}
 			}
-			break;
-		}
-		case EGrindState::Rail:
-		{
 			break;
 		}
 	}
@@ -730,15 +793,15 @@ void AJetBotCharacter::TickSounds(float DeltaTime)
 		MaxWindSpeed -= WindSoundMinSpeed;
 		WindSoundPlayer->SetVolumeMultiplier(MaxWindSpeed / WindSoundMaxSpeed);
 
-		//Limit Jet volume based on JetMeter 
-		if (JetMeter < MaxJetMeter)
-		{
-			JetSoundPlayer->SetVolumeMultiplier(FMath::Max(JetMeter/MaxJetMeter, JetSoundMinVolume)*JetScale);
-		}
-		else
-		{
+		////Limit Jet volume based on JetMeter 
+		//if (JetMeter < MaxJetMeter)
+		//{
+		//	JetSoundPlayer->SetVolumeMultiplier(FMath::Max(JetMeter/MaxJetMeter, JetSoundMinVolume)*JetScale);
+		//}
+		//else
+		//{
 			JetSoundPlayer->SetVolumeMultiplier(JetScale);
-		}
+		/*}*/
 		/*else
 		{
 			JetSoundPlayer->SetVolumeMultiplier(JetScale);
@@ -846,7 +909,7 @@ void AJetBotCharacter::Landed(const FHitResult & Hit)
 	
 	const float CurrentTime = GetWorld()->GetTimeSeconds();
 
-	if (FloorResult.bWalkableFloor)
+	if (FloorResult.bWalkableFloor && CurrentGrindState != EGrindState::Rail)
 	{
 		GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Yellow, FString(TEXT("|___|")));
 

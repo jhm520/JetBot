@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
+#include "Components/SplineComponent.h"
 #include "JetBotLibrary.generated.h"
 
 /**

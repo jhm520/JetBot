@@ -19,6 +19,26 @@ enum class EGrindState : uint8
 	Rail
 };
 
+UENUM(BlueprintType)
+enum class ECauseOfDeathEnum : uint8
+{
+	None,
+	FellToDeath,
+	SlammedIntoWall
+};
+
+UENUM(BlueprintType)
+enum class ETrickEnum : uint8
+{
+	None,
+	WallJump,
+	SmoothLanding,
+	Wall2Wall,
+	WallSliding,
+	MovingFast,
+	AirTime
+};
+
 UCLASS()
 class JETBOT_API AJetBotCharacter : public ACharacter
 {
@@ -185,8 +205,6 @@ protected:
 	UPROPERTY(Transient, BlueprintReadWrite)
 	FVector MoveDirection;
 
-	
-
 	//End transient variables
 
 	//#Jets
@@ -258,8 +276,15 @@ protected:
 
 	//#EndFloor
 
+	//Check if we have peeled off of a wall
+	void TickWall(const float DeltaTime);
+
+	//The normal of the wall we're on (points outward from the wall)
 	UPROPERTY(Transient)
 	FVector CurrentWallNormal;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement")
+	float WallPeelOffDistance = 100.0f;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Movement")
 	float WallJumpXYVelocity = 400.0f;
@@ -269,6 +294,10 @@ protected:
 
 	UPROPERTY(Transient)
 	float LastWallHitTime;
+
+	//Time it takes for the wall normal to reset after leaving a wall (even a brush surface)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement")
+	float WallNormalResetTime = 0.1f;
 
 	UPROPERTY(Transient)
 	int32 MaterialIndex;
@@ -288,7 +317,7 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	float MaxFlatlandWalkingSpeed = 1000.0f;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Movement")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement")
 	float CollisionDamageSpeedThreshold = 2000.0f;
 
 	float DefaultGroundFriction;
@@ -318,7 +347,6 @@ protected:
 	void CalculateLeanAngle();
 
 	//#Sounds
-
 	
 	//Update our looping sounds
 	void TickSounds(float DeltaTime);
@@ -330,6 +358,9 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Sound")
 	USoundBase* WallHitSound;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Sound")
+	USoundBase* CrashSound;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Sound")
 	USoundBase* LandSound;
@@ -390,6 +421,27 @@ protected:
 
 	//#EndAilerons
 
+	void Die(ECauseOfDeathEnum CauseOfDeath);
+
+	bool bIsDead;
+
+	UPROPERTY(Transient, BlueprintReadOnly, Category = "Scoring")
+	float Score;
+
+	void TickScore(const float DeltaTime);
+
+	void AddScore(ETrickEnum Trick);
+
+	//Keep track of the last wall we jumped on
+	UPROPERTY(Transient)
+	FVector LastWallJumpNormal = FVector::ZeroVector;
+
+	//For scoring, keep track of the last wall we landed on
+	UPROPERTY(Transient)
+	FVector LastWallHitNormal = FVector::ZeroVector;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+	TMap<ETrickEnum, float> TrickScoreMap;
 
 public:	
 	// Called every frame

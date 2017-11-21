@@ -129,6 +129,7 @@ protected:
 	UPROPERTY(Transient, BlueprintReadOnly)
 	bool bIsTryingToGrind;
 
+
 	//The amount of time we have to hit something we can grind on, after pressing grind
 	UPROPERTY(EditDefaultsOnly, Category = "Grinding")
 	float GrindLeewayTime = 0.5f;
@@ -138,6 +139,18 @@ protected:
 	FTimerHandle GrindTimer;
 
 	void SetNotTryingToGrind();
+
+	//If JetBot is trying to grind
+	UPROPERTY(Transient, BlueprintReadOnly)
+	bool bIsTryingToJump;
+
+	FTimerHandle JumpTimer;
+
+	void SetNotTryingToJump();
+
+	//The amount of time we have to hit something to jump, and jump immediately
+	UPROPERTY(EditDefaultsOnly, Category = "Jump")
+	float JumpLeewayTime = 0.5f;
 
 		UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Collision")
 	UCapsuleComponent* GrindCapsule;
@@ -421,6 +434,7 @@ protected:
 
 	//#EndAilerons
 
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Death")
 	void Die(ECauseOfDeathEnum CauseOfDeath);
 
 	bool bIsDead;

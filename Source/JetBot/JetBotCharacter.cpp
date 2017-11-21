@@ -242,6 +242,11 @@ void AJetBotCharacter::SetJump(bool bInWantsToJump)
 				CurrentWallNormal = FVector::ZeroVector;
 				CurrentFloorNormal = FVector::ZeroVector;
 			}
+			else
+			{
+				bIsTryingToJump = true;
+				GetWorldTimerManager().SetTimer(JumpTimer, this, &AJetBotCharacter::SetNotTryingToJump, JumpLeewayTime);
+			}
 
 		}
 	}
@@ -334,6 +339,14 @@ void AJetBotCharacter::Tick(float DeltaTime)
 
 	TickWall(DeltaTime);
 
+	if (bIsTryingToJump && bLanded)
+	{
+		bIsTryingToJump = false;
+		GetWorldTimerManager().ClearTimer(JumpTimer);
+		SetJump(true);
+		SetJump(false);
+	}
+
 	//Old tickwall
 	/*if (CurrentWallNormal != FVector::ZeroVector && CurrentTime - LastWallHitTime > WallNormalResetTime)
 	{
@@ -402,10 +415,21 @@ void AJetBotCharacter::OnCapsuleComponentHit(UPrimitiveComponent* HitComponent, 
 				const float WallHitVolume = 1.0f * (FMath::Min(GetCharacterMovement()->MaxWalkSpeed, PerpindicularVelocity.Size()) / GetCharacterMovement()->MaxWalkSpeed);
 				UGameplayStatics::PlaySoundAtLocation(this, WallHitSound, Hit.Location, WallHitVolume);
 
-				LaunchCharacter(NewVelocity, true, true);
-				GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Yellow, FString(TEXT(">/")));
 
-				DrawDebugPoint(GetWorld(), Hit.Location, 10.0f, FColor::Yellow, false, 5.0f);
+				if (bIsTryingToJump)
+				{
+					bIsTryingToJump = false;
+					GetWorldTimerManager().ClearTimer(JumpTimer);
+					CurrentWallNormal = Hit.Normal;
+					SetJump(true);
+					SetJump(false);
+				}
+				else
+				{
+					LaunchCharacter(NewVelocity, true, true);
+					GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Yellow, FString(TEXT(">/")));
+				}
+
 
 				//If we have jumped from another wall, add points
 				if (LastWallHitNormal == FVector::ZeroVector)
@@ -417,7 +441,7 @@ void AJetBotCharacter::OnCapsuleComponentHit(UPrimitiveComponent* HitComponent, 
 					AddScore(ETrickEnum::Wall2Wall);
 				}
 
-
+				
 			}
 
 			GetCharacterMovement()->SetMovementMode(MOVE_Falling);
@@ -433,6 +457,8 @@ void AJetBotCharacter::OnCapsuleComponentHit(UPrimitiveComponent* HitComponent, 
 
 			const float CurrentTime = GetWorld()->GetTimeSeconds();
 			LastWallHitTime = CurrentTime;
+
+			
 		}
 	}
 
@@ -444,6 +470,11 @@ void AJetBotCharacter::SetNotTryingToGrind()
 	{
 		bIsTryingToGrind = false;
 	}
+}
+
+void AJetBotCharacter::SetNotTryingToJump()
+{
+	bIsTryingToJump = false;
 }
 
 void AJetBotCharacter::TickRealVelocity(const float DeltaTime)
@@ -730,7 +761,7 @@ void AJetBotCharacter::EnableAilerons()
 	bCanUseAilerons = true;
 }
 
-void AJetBotCharacter::Die(ECauseOfDeathEnum CauseOfDeath)
+void AJetBotCharacter::Die_Implementation(ECauseOfDeathEnum CauseOfDeath)
 {
 	if (bIsDead)
 	{
@@ -1064,9 +1095,7 @@ void AJetBotCharacter::Landed(const FHitResult & Hit)
 		CurrentWallNormal = FVector::ZeroVector;
 		LastWallHitNormal = FVector::ZeroVector;
 		LastWallJumpNormal = FVector::ZeroVector;
-		bLanded = true;
 		LastLandingTime = CurrentTime;
-
 
 		CurrentGrindState = EGrindState::None;
 
@@ -1082,6 +1111,16 @@ void AJetBotCharacter::Landed(const FHitResult & Hit)
 		{
 			LandAudioComp = UGameplayStatics::SpawnSoundAttached(LandSound, GetRootComponent(), NAME_None, GetActorLocation(), EAttachLocation::KeepRelativeOffset, true, 1.0f, 1.0f, 0.0f, nullptr, nullptr, false);
 		}
+
+		bLanded = true;
+
+		if (CurrentFloorNormal.Z < 1.0f)
+		{
+			if (bLanded)
+			{
+				GetCharacterMovement()->Velocity = FVector::VectorPlaneProject(RealVelocity, CurrentFloorNormal);
+			}
+		}
 	}
 }
 
@@ -1091,12 +1130,6 @@ void AJetBotCharacter::OnMovementModeChanged(EMovementMode PrevMovementMode, uin
 
 	if (GetCharacterMovement()->MovementMode == MOVE_Walking && PrevMovementMode == MOVE_Falling)
 	{
-		if (CurrentFloorNormal.Z < 1.0f)
-		{
-			if (bLanded)
-			{
-				GetCharacterMovement()->Velocity = FVector::VectorPlaneProject(RealVelocity, CurrentFloorNormal);
-			}
-		}
+		
 	}
 }

@@ -14,7 +14,7 @@ void AJetBotGameMode::Tick(float DeltaTime)
 
 	//Spawning just one obstacle per tick helps avoid hitches
 
-	SpawnObstacle();
+	/*SpawnObstacle();*/
 }
 
 void AJetBotGameMode::QueueObstacleForSpawn(FTransform SpawnTransform, AActor* TileOwner)

@@ -57,10 +57,10 @@ void AJetBotWorldTile::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	if (bIsSpawningObstacles)
+	/*if (bIsSpawningObstacles)
 	{
 		QueueSpawnObstacleOnTile();
-	}
+	}*/
 }
 
 void AJetBotWorldTile::QueueSpawnObstacleOnTile_Implementation()

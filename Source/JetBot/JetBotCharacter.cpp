@@ -763,6 +763,8 @@ void AJetBotCharacter::EnableAilerons()
 
 void AJetBotCharacter::Die_Implementation(ECauseOfDeathEnum CauseOfDeath)
 {
+
+	return;
 	if (bIsDead)
 	{
 		return;

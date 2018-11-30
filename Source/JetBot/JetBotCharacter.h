@@ -159,7 +159,7 @@ protected:
 	float JetScale;
 
 	UPROPERTY(Transient, BlueprintReadWrite)
-	float BrakeScale;
+	float BrakeScale = 1.0f;
 
 	UPROPERTY(Transient, BlueprintReadOnly)
 	AActor* RunningOnActor;

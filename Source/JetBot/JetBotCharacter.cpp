@@ -176,24 +176,24 @@ void AJetBotCharacter::SetJump(bool bInWantsToJump)
 
 			FVector JumpDirection = FVector(0, 0, 1);
 
-			//if (CurrentGrindState == EGrindState::Rail)
-			//{
-			//	if (RealVelocity.Z < 0.0f)
-			//	{
-			//		//JumpDirection = CurrentFloorNormal;
-			//		RealVelocity.Z = 0.0f;
-			//	}
+			if (CurrentGrindState == EGrindState::Rail)
+			{
+				if (RealVelocity.Z < 0.0f)
+				{
+					//JumpDirection = CurrentFloorNormal;
+					RealVelocity.Z = 0.0f;
+				}
 
-			//	CurrentGrindState = EGrindState::None;
-			//	GrindingOnSpline = nullptr;
-			//	bIsTryingToGrind = false;
+				CurrentGrindState = EGrindState::None;
+				GrindingOnSpline = nullptr;
+				bIsTryingToGrind = false;
 
-			//	GetCharacterMovement()->Velocity = RealVelocity + GetCharacterMovement()->JumpZVelocity*JumpDirection;
+				GetCharacterMovement()->Velocity = RealVelocity + GetCharacterMovement()->JumpZVelocity*JumpDirection;
 
-			//	
-			//}
+				
+			}
 			// If we are on a floor
-			/*else */if (CurrentFloorNormal != FVector::ZeroVector)
+			else if (CurrentFloorNormal != FVector::ZeroVector)
 			{
 
 				//JumpDirection.Z = FMath::Max(CurrentWallNormal.Z, MinWallJumpZ);
@@ -260,14 +260,14 @@ void AJetBotCharacter::SetGrind(bool bInWantsToGrind)
 
 		if (bWantsToGrind)
 		{
-			////TODO: Implement rail grinding
-			////if we found an adequate spline to grind on
-			//if (GrindingOnSpline)
-			//{
-			//	CurrentGrindState = EGrindState::Rail;
-			//}
-			////See if we are grinding on a wall
-			/*else */if (CurrentWallNormal != FVector::ZeroVector)
+			//TODO: Implement rail grinding
+			//if we found an adequate spline to grind on
+			if (GrindingOnSpline)
+			{
+				CurrentGrindState = EGrindState::Rail;
+			}
+			//See if we are grinding on a wall
+			else if (CurrentWallNormal != FVector::ZeroVector)
 			{
 				CurrentGrindState = EGrindState::Wall;
 			}
@@ -610,7 +610,7 @@ void AJetBotCharacter::OnGrindCapsuleBeginOverlap(UPrimitiveComponent* HitCompon
 	{
 		RunningOnActor = OtherActor;
 
-		/*if (FeetComponent)
+		if (FeetComponent)
 		{
 			AJetBotObstacle* RunningOnObstacle = Cast<AJetBotObstacle>(RunningOnActor);
 
@@ -618,7 +618,7 @@ void AJetBotCharacter::OnGrindCapsuleBeginOverlap(UPrimitiveComponent* HitCompon
 			{
 				GrindingOnSpline = RunningOnObstacle->FindGrindSplineClosestToLocation(FeetComponent->GetComponentLocation(), GrindDistance);
 			}
-		}*/
+		}
 	}
 	else if (OtherActor != RunningOnActor)
 	{
@@ -634,7 +634,7 @@ void AJetBotCharacter::OnGrindCapsuleEndOverlap(UPrimitiveComponent* HitComponen
 		{
 			RunningOnActor = NextRunningOnActor;
 
-			/*if (FeetComponent)
+			if (FeetComponent)
 			{
 				AJetBotObstacle* RunningOnObstacle = Cast<AJetBotObstacle>(RunningOnActor);
 
@@ -642,7 +642,7 @@ void AJetBotCharacter::OnGrindCapsuleEndOverlap(UPrimitiveComponent* HitComponen
 				{
 					GrindingOnSpline = RunningOnObstacle->FindGrindSplineClosestToLocation(FeetComponent->GetComponentLocation(), GrindDistance);
 				}
-			}*/
+			}
 
 			NextRunningOnActor = nullptr;
 		}
@@ -665,33 +665,33 @@ void AJetBotCharacter::TickGrinding(const float DeltaTime)
 {
 	const static FVector FeetComponentOffset = GetActorLocation() - FeetComponent->GetComponentLocation();
 
-	////Check for grindable splines
-	//if (FeetComponent)
-	//{
-	//	AJetBotObstacle* RunningOnObstacle = Cast<AJetBotObstacle>(RunningOnActor);
+	//Check for grindable splines
+	if (FeetComponent)
+	{
+		AJetBotObstacle* RunningOnObstacle = Cast<AJetBotObstacle>(RunningOnActor);
 
-	//	if (RunningOnObstacle)
-	//	{
+		if (RunningOnObstacle)
+		{
 
-	//		USplineComponent* FoundSpline = RunningOnObstacle->FindGrindSplineClosestToLocation(FeetComponent->GetComponentLocation(), GrindDistance);
+			USplineComponent* FoundSpline = RunningOnObstacle->FindGrindSplineClosestToLocation(FeetComponent->GetComponentLocation(), GrindDistance);
 
-	//		if (FoundSpline)
-	//		{
-	//			//if this spline is different than the current spline we are grinding on
-	//			if (GrindingOnSpline != FoundSpline)
-	//			{
-	//				SetActorLocation(FoundSpline->FindLocationClosestToWorldLocation(FeetComponent->GetComponentLocation(), ESplineCoordinateSpace::World) + FeetComponentOffset);
-	//			}
+			if (FoundSpline)
+			{
+				//if this spline is different than the current spline we are grinding on
+				if (GrindingOnSpline != FoundSpline)
+				{
+					SetActorLocation(FoundSpline->FindLocationClosestToWorldLocation(FeetComponent->GetComponentLocation(), ESplineCoordinateSpace::World) + FeetComponentOffset);
+				}
 
-	//			GrindingOnSpline = FoundSpline;
+				GrindingOnSpline = FoundSpline;
 
-	//			if (bIsTryingToGrind)
-	//			{
-	//				CurrentGrindState = EGrindState::Rail;
-	//			}
-	//		}
-	//	}
-	//}
+				if (bIsTryingToGrind)
+				{
+					CurrentGrindState = EGrindState::Rail;
+				}
+			}
+		}
+	}
 
 	//For later, if we want to implement grinding
 
@@ -704,12 +704,12 @@ void AJetBotCharacter::TickGrinding(const float DeltaTime)
 		}
 		case EGrindState::Rail:
 		{
-			//if (!GrindingOnSpline)
-			//{
-			//	break;
-			//}
+			if (!GrindingOnSpline)
+			{
+				break;
+			}
 
-			//GetCharacterMovement()->Velocity = GetCharacterMovement()->Velocity.ProjectOnTo(GrindingOnSpline->FindDirectionClosestToWorldLocation(FeetComponent->GetComponentLocation(), ESplineCoordinateSpace::World));
+			GetCharacterMovement()->Velocity = GetCharacterMovement()->Velocity.ProjectOnTo(GrindingOnSpline->FindDirectionClosestToWorldLocation(FeetComponent->GetComponentLocation(), ESplineCoordinateSpace::World));
 
 			////SetActorLocation(GrindingOnSpline->FindLocationClosestToWorldLocation(FeetComponent->GetComponentLocation(), ESplineCoordinateSpace::World) + FeetComponentOffset);
 

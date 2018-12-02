@@ -117,6 +117,8 @@ protected:
 	UPROPERTY(Transient, BlueprintReadOnly)
 	EGrindState CurrentGrindState = EGrindState::None;
 
+	void SetCurrentGrindState(EGrindState InGrindState);
+
 	//The distance from a spline we need to be to grind on it
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Grinding")
 	float GrindDistance = 50.0f;

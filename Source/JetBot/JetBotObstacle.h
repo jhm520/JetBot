@@ -49,5 +49,11 @@ public:
 
 	//Find the spline closest to this location within a specified MaxDistance (pass in 0.0f for no maximum)
 	USplineComponent* FindGrindSplineClosestToLocation(const FVector& InLocation, const float InMaxDistance);
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "Game")
+	void OnPlayerTouched();
+
+	UPROPERTY(BlueprintReadWrite, Category = "Game")
+	bool bPlayerTouched = false;
 	
 };

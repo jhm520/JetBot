@@ -131,6 +131,9 @@ protected:
 	UPROPERTY(Transient, BlueprintReadOnly)
 	bool bIsTryingToGrind;
 
+	//The amount of time we have to hit something we can grind on, after pressing grind
+	UPROPERTY(EditDefaultsOnly, Category = "Grinding")
+	bool bCanGrindOnRails = false;
 
 	//The amount of time we have to hit something we can grind on, after pressing grind
 	UPROPERTY(EditDefaultsOnly, Category = "Grinding")
@@ -165,6 +168,8 @@ protected:
 
 	UPROPERTY(Transient, BlueprintReadOnly)
 	AActor* RunningOnActor;
+
+	void SetRunningOnActor(AActor* InRunningOnActor);
 
 	UPROPERTY(Transient, BlueprintReadOnly)
 	AActor* NextRunningOnActor;

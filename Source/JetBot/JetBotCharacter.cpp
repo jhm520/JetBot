@@ -8,6 +8,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Components/SplineComponent.h"
 #include "JetBotObstacle.h"
+#include "JetBotGameMode.h"
 
 namespace InputVectors
 {
@@ -329,6 +330,8 @@ void AJetBotCharacter::Tick(float DeltaTime)
 		TickGrinding(DeltaTime);
 
 		TickScore(DeltaTime);
+
+		TickFalling();
 	}
 
 	//Add floor slope impulse
@@ -404,7 +407,7 @@ void AJetBotCharacter::OnCapsuleComponentHit(UPrimitiveComponent* HitComponent, 
 
 				//Check for collision damage
 
-				if (WallHitVelocity.Size() > CollisionDamageSpeedThreshold)
+				if (bHasFallDamage && WallHitVelocity.Size() > CollisionDamageSpeedThreshold)
 				{
 					GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Yellow, FString(TEXT("X")));
 					Die(ECauseOfDeathEnum::SlammedIntoWall);
@@ -606,6 +609,9 @@ void AJetBotCharacter::TickBrakes(const float DeltaTime)
 
 void AJetBotCharacter::OnGrindCapsuleBeginOverlap(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, FHitResult SweepResult)
 {
+
+	TouchActor(OtherActor);
+
 	if (!RunningOnActor)
 	{
 		SetRunningOnActor(OtherActor);
@@ -618,7 +624,7 @@ void AJetBotCharacter::OnGrindCapsuleBeginOverlap(UPrimitiveComponent* HitCompon
 			{
 				GrindingOnSpline = RunningOnObstacle->FindGrindSplineClosestToLocation(FeetComponent->GetComponentLocation(), GrindDistance);
 
-				if (bIsTryingToGrind && GrindingOnSpline)
+				if (bCanGrindOnRails && bIsTryingToGrind && GrindingOnSpline)
 				{
 					SetCurrentGrindState(EGrindState::Rail);
 				}
@@ -633,14 +639,17 @@ void AJetBotCharacter::OnGrindCapsuleBeginOverlap(UPrimitiveComponent* HitCompon
 
 void AJetBotCharacter::SetRunningOnActor(AActor* InRunningOnActor)
 {
-	AJetBotObstacle* RunningOnObstacle = Cast<AJetBotObstacle>(InRunningOnActor);
+	RunningOnActor = InRunningOnActor;
+}
+
+void AJetBotCharacter::TouchActor(AActor* InTouchedActor)
+{
+	AJetBotObstacle* RunningOnObstacle = Cast<AJetBotObstacle>(InTouchedActor);
 
 	if (RunningOnObstacle)
 	{
 		RunningOnObstacle->OnPlayerTouched();
 	}
-
-	RunningOnActor = InRunningOnActor;
 }
 
 void AJetBotCharacter::OnGrindCapsuleEndOverlap(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
@@ -725,7 +734,7 @@ void AJetBotCharacter::TickGrinding(const float DeltaTime)
 
 				GrindingOnSpline = FoundSpline;
 
-				if (bIsTryingToGrind)
+				if (bIsTryingToGrind && bCanGrindOnRails)
 				{
 					SetCurrentGrindState(EGrindState::Rail);
 				}
@@ -814,8 +823,6 @@ void AJetBotCharacter::EnableAilerons()
 
 void AJetBotCharacter::Die_Implementation(ECauseOfDeathEnum CauseOfDeath)
 {
-
-	return;
 	if (bIsDead)
 	{
 		return;
@@ -829,7 +836,7 @@ void AJetBotCharacter::Die_Implementation(ECauseOfDeathEnum CauseOfDeath)
 	}
 
 	bIsDead = true;
-	SetLifeSpan(2.0f);
+	SetLifeSpan(2.0);
 }
 
 void AJetBotCharacter::TickScore(const float DeltaTime)
@@ -1154,7 +1161,7 @@ void AJetBotCharacter::Landed(const FHitResult & Hit)
 
 		const FVector FloorHitVelocity = RealVelocity.ProjectOnTo(CurrentFloorNormal);
 
-		if (FloorHitVelocity.Size() > CollisionDamageSpeedThreshold)
+		if (bHasFallDamage && FloorHitVelocity.Size() > CollisionDamageSpeedThreshold)
 		{
 			Die(ECauseOfDeathEnum::FellToDeath);
 			return;
@@ -1184,5 +1191,16 @@ void AJetBotCharacter::OnMovementModeChanged(EMovementMode PrevMovementMode, uin
 	if (GetCharacterMovement()->MovementMode == MOVE_Walking && PrevMovementMode == MOVE_Falling)
 	{
 		
+	}
+}
+
+void AJetBotCharacter::TickFalling()
+{
+	AJetBotGameMode* GameMode = Cast<AJetBotGameMode>(GetWorld()->GetAuthGameMode());
+
+	const float KillZ = GameMode->GetKillZ();
+	if (GetActorLocation().Z < KillZ)
+	{
+		Die(ECauseOfDeathEnum::FellToDeath);
 	}
 }

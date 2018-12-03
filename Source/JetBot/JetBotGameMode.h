@@ -66,6 +66,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = WorldTile)
 	AJetBotWorldTile* GetCurrentlySpawningTile();
 
+	//Get the tile that is currently spawning obstacles
+	UFUNCTION(BlueprintCallable, BlueprintPure, BlueprintImplementableEvent, Category = WorldTile)
+	float GetKillZ();
+
 protected:
 
 	//Array of the types of world tile classes we can spawn

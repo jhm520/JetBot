@@ -64,6 +64,8 @@ void AJetBotGameMode::SpawnObstacle()
 		return;
 	}
 
+	
+
 	const FObstacleSpawnInfo ObstacleSpawnInfo = ObstacleSpawnQueue.Pop();
 
 	FActorSpawnParameters SpawnParams;

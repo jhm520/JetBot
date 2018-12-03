@@ -171,6 +171,8 @@ protected:
 
 	void SetRunningOnActor(AActor* InRunningOnActor);
 
+	void TouchActor(AActor* InTouchedActor);
+
 	UPROPERTY(Transient, BlueprintReadOnly)
 	AActor* NextRunningOnActor;
 
@@ -340,6 +342,9 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement")
 	float CollisionDamageSpeedThreshold = 2000.0f;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement")
+	bool bHasFallDamage = false;
+
 	float DefaultGroundFriction;
 
 	//Functions
@@ -490,4 +495,5 @@ public:
 
 	virtual void OnMovementModeChanged(EMovementMode PrevMovementMode, uint8 PreviousCustomMode = 0) override;
 
+	void TickFalling();
 };

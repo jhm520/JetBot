@@ -345,7 +345,7 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement")
 	bool bHasFallDamage = false;
 
-	float DefaultGroundFriction;
+	float DefaultGroundFriction = 8.0f;
 
 	//Functions
 

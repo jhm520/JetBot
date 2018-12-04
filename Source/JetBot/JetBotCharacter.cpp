@@ -508,7 +508,11 @@ void AJetBotCharacter::TickMovementInput(const float DeltaTime)
 		//}
 	}
 
-	AddMovementInput(MoveDirection);
+
+	if (BrakeScale < 0.1f)
+	{
+		AddMovementInput(MoveDirection);
+	}
 }
 
 void AJetBotCharacter::TickJets(const float DeltaTime)

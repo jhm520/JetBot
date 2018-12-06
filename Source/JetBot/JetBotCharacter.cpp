@@ -1202,9 +1202,13 @@ void AJetBotCharacter::TickFalling()
 {
 	AJetBotGameMode* GameMode = Cast<AJetBotGameMode>(GetWorld()->GetAuthGameMode());
 
-	const float KillZ = GameMode->GetKillZ();
-	if (GetActorLocation().Z < KillZ)
+	if (GameMode)
 	{
-		Die(ECauseOfDeathEnum::FellToDeath);
+		const float KillZ = GameMode->GetKillZ();
+		if (GetActorLocation().Z < KillZ)
+		{
+			Die(ECauseOfDeathEnum::FellToDeath);
+		}
 	}
+	
 }

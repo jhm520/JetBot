@@ -47,6 +47,11 @@ Binaries/*
 # Builds
 Build/*
 
+/Plugins/*/*/Intermediate/*
+/Plugins/*/Intermediate/*
+/Plugins/*/Binaries/*
+/Plugins/*/*/Binaries/*
+
 # Don't ignore icon files in Build
 !Build/**/*.ico
 

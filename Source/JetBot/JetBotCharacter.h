@@ -57,11 +57,20 @@ protected:
 	UFUNCTION(BlueprintCallable, Category = "Input")
 	void SetMoveForwardAxis(float InMoveForwardAxis);
 
+	UFUNCTION(Server, Reliable, WithValidation, Category = "Input")
+	void ServerSetMoveForwardAxis(float InMoveForwardAxis);
+
 	UFUNCTION(BlueprintCallable, Category = "Input")
 	void SetMoveRightAxis(float InMoveRightAxis);
 
+	UFUNCTION(Server, Reliable, WithValidation, Category = "Input")
+	void ServerSetMoveRightAxis(float InMoveForwardAxis);
+
 	UFUNCTION(BlueprintCallable, Category = "Input")
 	void SetJetAxis(const float InJetAxis);
+
+	UFUNCTION(Server, Reliable, WithValidation, Category = "Input")
+	void ServerSetJetAxis(const float InJetAxis);
 
 	UFUNCTION(BlueprintCallable, Category = "Input")
 	void SetBrakeAxis(const float InBrakeAxis);
@@ -150,7 +159,7 @@ protected:
 		UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Collision")
 	UCapsuleComponent* GrindCapsule;
 
-	UPROPERTY(Transient, BlueprintReadWrite)
+	UPROPERTY(Replicated, Transient, BlueprintReadWrite)
 	float JetScale;
 
 	UPROPERTY(Replicated, Transient, BlueprintReadWrite)
@@ -196,10 +205,10 @@ protected:
 	UPROPERTY(Transient)
 	float LastLandingTime = 0.0f;
 
-	UPROPERTY(Transient, BlueprintReadWrite)
+	UPROPERTY(Replicated, Transient, BlueprintReadWrite)
 	FVector InputVector;
 
-	UPROPERTY(Transient, BlueprintReadWrite)
+	UPROPERTY(Replicated, Transient, BlueprintReadWrite)
 	FVector MoveDirection;
 
 	//End transient variables
@@ -208,7 +217,7 @@ protected:
 	UPROPERTY(Transient, BlueprintReadOnly, Category = "Jets")
 	FVector JetDirection;
 
-	UPROPERTY(Transient, BlueprintReadOnly, Category = "Jets")
+	UPROPERTY(Replicated, Transient, BlueprintReadOnly, Category = "Jets")
 	float JetMeter = 100.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Jets")
@@ -237,8 +246,15 @@ protected:
 	//Update our "Real Velocity
 	void TickRealVelocity(const float DeltaTime);
 
-	UPROPERTY(Transient, BlueprintReadOnly)
+	UPROPERTY(Transient, Replicated, BlueprintReadOnly)
 	FVector RealVelocity = FVector::ZeroVector;
+
+	void SetRealVelocity(const FVector& InRealVelocity);
+
+	FVector& GetRealVelocity() { return RealVelocity; }
+
+	UFUNCTION(Server, Reliable, WithValidation)
+	void ServerSetRealVelocity(const FVector& InRealVelocity);
 
 	UPROPERTY(Transient, BlueprintReadOnly)
 	FVector PreviousRealVelocity = FVector::ZeroVector;
@@ -268,8 +284,15 @@ protected:
 	//Update our floor
 	void TickFloor();
 
-	UPROPERTY(Transient)
+	UPROPERTY(Replicated, Transient)
 	FVector CurrentFloorNormal;
+
+	const FVector& GetCurrentFloorNormal() { return CurrentFloorNormal; }
+
+	void SetCurrentFloorNormal(const FVector& InCurrentFloorNormal);
+
+	UFUNCTION(Server, Reliable, WithValidation)
+	void ServerSetCurrentFloorNormal(const FVector& InCurrentFloorNormal);
 
 	//#EndFloor
 
@@ -277,8 +300,15 @@ protected:
 	void TickWall(const float DeltaTime);
 
 	//The normal of the wall we're on (points outward from the wall)
-	UPROPERTY(Transient)
+	UPROPERTY(Replicated, Transient)
 	FVector CurrentWallNormal;
+
+	const FVector& GetCurrentWallNormal() { return CurrentWallNormal; }
+
+	void SetCurrentWallNormal(const FVector& InCurrentWallNormal);
+
+	UFUNCTION(Server, Reliable, WithValidation)
+	void ServerSetCurrentWallNormal(const FVector& InCurrentWallNormal);
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Movement")
 	float WallPeelOffDistance = 100.0f;
@@ -326,8 +356,15 @@ protected:
 
 	void TickMovementInput(const float DeltaTime);
 
+	UFUNCTION(Server, Reliable, WithValidation)
+	void ServerTickMovementInput(const float DeltaTime);
+
 	//Add a jet booster impulse
 	void TickJets(const float DeltaTime);
+
+	//Add a jet booster impulse
+	UFUNCTION(Server, Reliable, WithValidation)
+	void ServerTickJets(const float DeltaTime);
 
 	//Add an impulse based on the floor's slope
 	void TickRolling(const float DeltaTime);

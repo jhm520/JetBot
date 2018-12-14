@@ -9,6 +9,8 @@
 #include "Components/SplineComponent.h"
 #include "JetBotObstacle.h"
 #include "JetBotGameMode.h"
+#include "JetBotCharacterMovementComponent.h"
+#include "UnrealNetwork.h"
 
 namespace InputVectors
 {
@@ -20,7 +22,7 @@ namespace InputVectors
 }
 
 // Sets default values
-AJetBotCharacter::AJetBotCharacter(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
+AJetBotCharacter::AJetBotCharacter(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer/*.SetDefaultSubobjectClass<UJetBotCharacterMovementComponent>(ACharacter::CharacterMovementComponentName)*/)
 {
  	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
@@ -37,6 +39,14 @@ AJetBotCharacter::AJetBotCharacter(const FObjectInitializer& ObjectInitializer) 
 	TrickScoreMap.Emplace(ETrickEnum::WallSliding, 1.0f);
 	TrickScoreMap.Emplace(ETrickEnum::MovingFast, 1.0f);
 	TrickScoreMap.Emplace(ETrickEnum::AirTime, 1.0f);
+}
+
+void AJetBotCharacter::GetLifetimeReplicatedProps(TArray < FLifetimeProperty > & OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	DOREPLIFETIME(AJetBotCharacter, bWantsToJump);
+	DOREPLIFETIME(AJetBotCharacter, BrakeScale);
 }
 
 // Called when the game starts or when spawned
@@ -65,65 +75,42 @@ void AJetBotCharacter::BeginPlay()
 	InitializeSoundPlayers();
 }
 
-void AJetBotCharacter::SetMoveForward(bool bInMove)
-{
-	SetMoveInput(bInMove, bWantsToMoveForward, InputVectors::Forward);
-}
-
 void AJetBotCharacter::SetMoveForwardAxis(float InMoveForwardAxis)
 {
-	if (!(bWantsToMoveForward || bWantsToMoveBackward))
-	{
-		InputVector.X = InMoveForwardAxis;
-	}
-}
-
-void AJetBotCharacter::SetMoveBackward(bool bInMove)
-{
-	SetMoveInput(bInMove, bWantsToMoveBackward, InputVectors::Backward);
-}
-
-void AJetBotCharacter::SetMoveLeft(bool bInMove)
-{
-	SetMoveInput(bInMove, bWantsToMoveLeft, InputVectors::Left);
-}
-
-void AJetBotCharacter::SetMoveRight(bool bInMove)
-{
-	SetMoveInput(bInMove, bWantsToMoveRight, InputVectors::Right);
+	InputVector.X = InMoveForwardAxis;
 }
 
 void AJetBotCharacter::SetMoveRightAxis(float InMoveRightAxis)
 {
-	if (!(bWantsToMoveRight || bWantsToMoveLeft))
-	{
-		InputVector.Y = InMoveRightAxis;
-	}
-}
-
-void AJetBotCharacter::SetJet(const bool bInWantsToJet)
-{
-	if (bInWantsToJet != bWantsToJet)
-	{
-		bWantsToJet = bInWantsToJet;
-		bWantsToJet ? JetScale = 1.0f : JetScale = 0.0f;
-	}
+	InputVector.Y = InMoveRightAxis;
 }
 
 void AJetBotCharacter::SetJetAxis(const float InJetAxis)
 {
-	if (!bWantsToJet)
-	{
-		JetScale = InJetAxis;
-	}
+	JetScale = InJetAxis;
 }
 
 void AJetBotCharacter::SetBrakeAxis(const float InBrakeAxis)
 {
+	if (Role != ROLE_Authority)
+	{
+		ServerSetBrakeAxis(InBrakeAxis);
+	}
+
 	if (!bWantsToBrake)
 	{
 		BrakeScale = InBrakeAxis;
 	}
+}
+
+void AJetBotCharacter::ServerSetBrakeAxis_Implementation(const float InBrakeAxis)
+{
+	SetBrakeAxis(InBrakeAxis);
+}
+
+bool AJetBotCharacter::ServerSetBrakeAxis_Validate(const float InBrakeAxis)
+{
+	return true;
 }
 
 void AJetBotCharacter::SetAilerons(const bool bInAilerons)
@@ -131,15 +118,6 @@ void AJetBotCharacter::SetAilerons(const bool bInAilerons)
 	if (bInAilerons != bWantsToAilerons)
 	{
 		bWantsToAilerons = bInAilerons;
-	}
-}
-
-void AJetBotCharacter::SetMoveInput(const bool bInWantsToMove, bool& bWantsToMove, const FVector InInputVector)
-{
-	if (bInWantsToMove != bWantsToMove)
-	{
-		bWantsToMove = bInWantsToMove;
-		bWantsToMove ? InputVector += InInputVector : InputVector -= InInputVector;
 	}
 }
 
@@ -158,6 +136,11 @@ void AJetBotCharacter::OnLookPitch(float PitchVal)
 
 void AJetBotCharacter::SetJump(bool bInWantsToJump)
 {
+	if (Role != ROLE_Authority)
+	{
+		ServerSetJump(bInWantsToJump);
+	}
+
 	if (bInWantsToJump != bWantsToJump)
 	{
 		bWantsToJump = bInWantsToJump;
@@ -251,6 +234,16 @@ void AJetBotCharacter::SetJump(bool bInWantsToJump)
 
 		}
 	}
+}
+
+void AJetBotCharacter::ServerSetJump_Implementation(bool bInWantsToJump)
+{
+	SetJump(bInWantsToJump);
+}
+
+bool AJetBotCharacter::ServerSetJump_Validate(bool bInWantsToJump)
+{
+	return true;
 }
 
 void AJetBotCharacter::SetGrind(bool bInWantsToGrind)
@@ -525,7 +518,7 @@ void AJetBotCharacter::TickJets(const float DeltaTime)
 	bool bShouldJet = false;
 	JetDirection = FVector::ZeroVector;
 
-	if (bWantsToJet || JetScale > 0.01f)
+	if (JetScale > 0.01f)
 	{
 		JetDirection = MoveDirection;
 		JetDirection.Z = 1.0f - JetDirection.Size();

@@ -48,51 +48,41 @@ public:
 	// Sets default values for this character's properties
 	AJetBotCharacter(const FObjectInitializer& ObjectInitializer);
 
+	virtual void GetLifetimeReplicatedProps(TArray < class FLifetimeProperty > & OutLifetimeProps) const override;
+
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
-
-	//Input functions
-	UFUNCTION(BlueprintCallable, Category = "Input")
-	void SetMoveForward(bool bInMove);
 
 	UFUNCTION(BlueprintCallable, Category = "Input")
 	void SetMoveForwardAxis(float InMoveForwardAxis);
 
 	UFUNCTION(BlueprintCallable, Category = "Input")
-	void SetMoveBackward(bool bInMove);
-
-	UFUNCTION(BlueprintCallable, Category = "Input")
-	void SetMoveLeft(bool bInMove);
-
-	UFUNCTION(BlueprintCallable, Category = "Input")
-	void SetMoveRight(bool bInMove);
-
-	UFUNCTION(BlueprintCallable, Category = "Input")
 	void SetMoveRightAxis(float InMoveRightAxis);
 
 	UFUNCTION(BlueprintCallable, Category = "Input")
-	virtual void SetJet(const bool bInWantsToJet);
+	void SetJetAxis(const float InJetAxis);
 
 	UFUNCTION(BlueprintCallable, Category = "Input")
-	virtual void SetJetAxis(const float InJetAxis);
+	void SetBrakeAxis(const float InBrakeAxis);
 
-	UFUNCTION(BlueprintCallable, Category = "Input")
-	virtual void SetBrakeAxis(const float InBrakeAxis);
+	UFUNCTION(Server, Reliable, WithValidation, Category = "Input")
+	void ServerSetBrakeAxis(const float InBrakeAxis);
 
 	UFUNCTION(BlueprintCallable, Category = "Input")
 	void SetAilerons(const bool bInAilerons);
 
-	void SetMoveInput(const bool bInWantsToMove, bool& bWantsToMove, const FVector InInputVector);
+	UFUNCTION(BlueprintCallable, Category = "Input")
+	void OnLookYaw(float YawVal);
 
 	UFUNCTION(BlueprintCallable, Category = "Input")
-		void OnLookYaw(float YawVal);
+	void OnLookPitch(float PitchVal);
 
 	UFUNCTION(BlueprintCallable, Category = "Input")
-		void OnLookPitch(float PitchVal);
+	void SetJump(bool bInWantsToJump);
 
-	UFUNCTION(BlueprintCallable, Category = "Input")
-		void SetJump(bool bInWantsToJump);
+	UFUNCTION(Server, Reliable, WithValidation, Category = "Input")
+	void ServerSetJump(bool bInWantsToJump);
 
 	UFUNCTION(BlueprintCallable, Category = "Input")
 	void SetGrind(bool bInWantsToGrind);
@@ -163,7 +153,7 @@ protected:
 	UPROPERTY(Transient, BlueprintReadWrite)
 	float JetScale;
 
-	UPROPERTY(Transient, BlueprintReadWrite)
+	UPROPERTY(Replicated, Transient, BlueprintReadWrite)
 	float BrakeScale = 1.0f;
 
 	UPROPERTY(Transient, BlueprintReadOnly)
@@ -179,26 +169,11 @@ protected:
 	UPROPERTY(Transient, BlueprintReadOnly)
 	USplineComponent* GrindingOnSpline;
 
-	UPROPERTY(Transient, BlueprintReadOnly)
-	bool bWantsToMoveForward = false;
-
-	UPROPERTY(Transient, BlueprintReadOnly)
-	bool bWantsToMoveBackward = false;
-
-	UPROPERTY(Transient, BlueprintReadOnly)
-	bool bWantsToMoveLeft = false;
-
-	UPROPERTY(Transient, BlueprintReadOnly)
-	bool bWantsToMoveRight = false;
-
-	UPROPERTY(Transient, BlueprintReadOnly)
+	UPROPERTY(Replicated, Transient, BlueprintReadOnly)
 	bool bWantsToJump = false;
 
 	UPROPERTY(Transient, BlueprintReadOnly)
 	bool bWantsToGrind = false;
-
-	UPROPERTY(Transient, BlueprintReadOnly)
-	bool bWantsToJet = false;
 
 	UPROPERTY(Transient, BlueprintReadOnly)
 	bool bWantsToBrake = false;

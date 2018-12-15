@@ -83,6 +83,11 @@ void AJetBotCharacter::BeginPlay()
 
 void AJetBotCharacter::SetMoveForwardAxis(float InMoveForwardAxis)
 {
+	if (!IsLocallyControlled() && Role != ROLE_Authority)
+	{
+		return;
+	}
+
 	if (Role != ROLE_Authority)
 	{
 		ServerSetMoveForwardAxis(InMoveForwardAxis);
@@ -103,6 +108,11 @@ bool AJetBotCharacter::ServerSetMoveForwardAxis_Validate(float InMoveForwardAxis
 
 void AJetBotCharacter::SetMoveRightAxis(float InMoveRightAxis)
 {
+	if (!IsLocallyControlled() && Role != ROLE_Authority)
+	{
+		return;
+	}
+
 	if (Role != ROLE_Authority)
 	{
 		ServerSetMoveRightAxis(InMoveRightAxis);
@@ -123,6 +133,11 @@ bool AJetBotCharacter::ServerSetMoveRightAxis_Validate(float InMoveForwardAxis)
 
 void AJetBotCharacter::SetJetAxis(const float InJetAxis)
 {
+	if (!IsLocallyControlled() && Role != ROLE_Authority)
+	{
+		return;
+	}
+
 	if (Role != ROLE_Authority)
 	{
 		ServerSetJetAxis(InJetAxis);
@@ -143,15 +158,17 @@ bool AJetBotCharacter::ServerSetJetAxis_Validate(const float InJetAxis)
 
 void AJetBotCharacter::SetBrakeAxis(const float InBrakeAxis)
 {
+	if (!IsLocallyControlled() && Role != ROLE_Authority)
+	{
+		return;
+	}
+
 	if (Role != ROLE_Authority)
 	{
 		ServerSetBrakeAxis(InBrakeAxis);
 	}
 
-	if (!bWantsToBrake)
-	{
-		BrakeScale = InBrakeAxis;
-	}
+	BrakeScale = InBrakeAxis;
 }
 
 void AJetBotCharacter::ServerSetBrakeAxis_Implementation(const float InBrakeAxis)
@@ -187,6 +204,11 @@ void AJetBotCharacter::OnLookPitch(float PitchVal)
 
 void AJetBotCharacter::SetJump(bool bInWantsToJump)
 {
+	if (!IsLocallyControlled() && Role != ROLE_Authority)
+	{
+		return;
+	}
+
 	if (Role != ROLE_Authority)
 	{
 		ServerSetJump(bInWantsToJump);
@@ -409,6 +431,11 @@ void AJetBotCharacter::OnWalkingOffLedge_Implementation(const FVector & Previous
 {
 	Super::OnWalkingOffLedge_Implementation(PreviousFloorImpactNormal, PreviousFloorContactNormal, PreviousLocation, TimeDelta);
 
+	if (!IsLocallyControlled() && Role != ROLE_Authority)
+	{
+		return;
+	}
+
 	//if we walk off a ledge, set our velocity to what it was before
 	if (GetRealVelocity() != FVector::ZeroVector && CurrentGrindState != EGrindState::Rail)
 	{
@@ -517,6 +544,11 @@ void AJetBotCharacter::SetNotTryingToJump()
 
 void AJetBotCharacter::AuthLaunchCharacter(const FVector& LaunchVelocity, bool bXY, bool bZ)
 {
+	if (!IsLocallyControlled() && Role != ROLE_Authority)
+	{
+		return;
+	}
+
 	if (Role != ROLE_Authority)
 	{
 		ServerAuthLaunchCharacter(LaunchVelocity, bXY, bZ);
@@ -527,6 +559,11 @@ void AJetBotCharacter::AuthLaunchCharacter(const FVector& LaunchVelocity, bool b
 
 void AJetBotCharacter::AuthSetMovementMode(const EMovementMode& InMovementMode)
 {
+	if (!IsLocallyControlled() && Role != ROLE_Authority)
+	{
+		return;
+	} 
+
 	if (Role != ROLE_Authority)
 	{
 		ServerAuthSetMovementMode(InMovementMode);
@@ -537,12 +574,43 @@ void AJetBotCharacter::AuthSetMovementMode(const EMovementMode& InMovementMode)
 
 void AJetBotCharacter::AuthSetVelocity(const FVector& InVelocity)
 {
+	if (!IsLocallyControlled() && Role != ROLE_Authority)
+	{
+		return;
+	}
+
 	if (Role != ROLE_Authority)
 	{
 		ServerAuthSetVelocity(InVelocity);
 	}
 
 	GetCharacterMovement()->Velocity = InVelocity;
+}
+
+void AJetBotCharacter::AuthAddImpulse(const FVector& InVelocity)
+{
+
+	if (!IsLocallyControlled() && Role != ROLE_Authority)
+	{
+		return;
+	}
+
+	if (Role != ROLE_Authority)
+	{
+		ServerAuthAddImpulse(InVelocity);
+	}
+
+	GetCharacterMovement()->AddImpulse(InVelocity, true);
+}
+
+void AJetBotCharacter::ServerAuthAddImpulse_Implementation(const FVector& InVelocity)
+{
+	AuthAddImpulse(InVelocity);
+}
+
+bool AJetBotCharacter::ServerAuthAddImpulse_Validate(const FVector& InVelocity)
+{
+	return true;
 }
 
 void AJetBotCharacter::ServerAuthSetVelocity_Implementation(const FVector& InVelocity)
@@ -577,6 +645,11 @@ bool AJetBotCharacter::ServerAuthLaunchCharacter_Validate(const FVector& LaunchV
 
 void AJetBotCharacter::TickRealVelocity(const float DeltaTime)
 {
+	if (!IsLocallyControlled() && Role != ROLE_Authority)
+	{
+		return;
+	}
+
 	//Calculate "real" velocity from distance between two locations
 	if (PreviousLocation != FVector::ZeroVector)
 	{
@@ -586,6 +659,11 @@ void AJetBotCharacter::TickRealVelocity(const float DeltaTime)
 
 void AJetBotCharacter::SetRealVelocity(const FVector& InRealVelocity)
 {
+	if (!IsLocallyControlled() && Role != ROLE_Authority)
+	{
+		return;
+	}
+
 	if (Role != ROLE_Authority)
 	{
 		ServerSetRealVelocity(InRealVelocity);
@@ -606,6 +684,11 @@ bool AJetBotCharacter::ServerSetRealVelocity_Validate(const FVector& InRealVeloc
 
 void AJetBotCharacter::TickMovementInput(const float DeltaTime)
 {
+	if (!IsLocallyControlled() && Role != ROLE_Authority)
+	{
+		return;
+	}
+
 	if (Role != ROLE_Authority)
 	{
 		ServerTickMovementInput(DeltaTime);
@@ -635,10 +718,9 @@ bool AJetBotCharacter::ServerTickMovementInput_Validate(const float DeltaTime)
 
 void AJetBotCharacter::TickJets(const float DeltaTime)
 {
-
-	if (Role != ROLE_Authority)
+	if (!IsLocallyControlled() && Role != ROLE_Authority)
 	{
-		ServerTickJets(DeltaTime);
+		return;
 	}
 
 	if (!bCanJet)
@@ -662,7 +744,7 @@ void AJetBotCharacter::TickJets(const float DeltaTime)
 	{
 		if (JetMeter > 0.0f)
 		{
-			GetCharacterMovement()->AddImpulse(JetDirection*JetImpulseScale*JetScale*DeltaTime, true);
+			AuthAddImpulse(JetDirection*JetImpulseScale*JetScale*DeltaTime);
 			JetRegenTimer = JetRegenDelay;
 
 			//Drain jets
@@ -708,7 +790,12 @@ bool AJetBotCharacter::ServerTickJets_Validate(const float DeltaTime)
 }
 
 void AJetBotCharacter::TickRolling(const float DeltaTime)
-{ 
+{
+	if (!IsLocallyControlled() && Role != ROLE_Authority)
+	{
+		return;
+	}
+
 	//Add "rolling" impulse from our floor
 	if (GetCurrentFloorNormal() != FVector::ZeroVector)
 	{
@@ -718,7 +805,7 @@ void AJetBotCharacter::TickRolling(const float DeltaTime)
 
 			const FVector RollingImpulse = RollingNormal * GetCharacterMovement()->GetGravityZ() * DeltaTime;
 
-			GetCharacterMovement()->AddImpulse(RollingImpulse.ProjectOnTo(GetRealVelocity()), true);
+			AuthAddImpulse(RollingImpulse.ProjectOnTo(GetRealVelocity()));
 		}
 	}
 }
@@ -914,7 +1001,7 @@ void AJetBotCharacter::TickGrinding(const float DeltaTime)
 					}
 					else
 					{
-						GetCharacterMovement()->AddImpulse(JetImpulseScale*InputVectors::Up*DeltaTime, true);
+						AuthAddImpulse(JetImpulseScale*InputVectors::Up*DeltaTime);
 					}
 				}
 			}
@@ -1021,10 +1108,10 @@ void AJetBotCharacter::AddScore(ETrickEnum Trick)
 
 void AJetBotCharacter::TickFloor()
 {
-	//if (!IsLocallyControlled())
-	//{
-	//	return;
-	//}
+	if (!IsLocallyControlled())
+	{
+		return;
+	}
 
 	//Update our floor
 	FFindFloorResult FloorResult;
@@ -1044,7 +1131,7 @@ void AJetBotCharacter::TickFloor()
 				*/
 				if (GetCurrentFloorNormal() != FVector::ZeroVector && GetRealVelocity().Z < PreviousRealVelocity.Z)
 				{
-					if (!bWantsToJump && !(CurrentGrindState != EGrindState::Rail))
+					if (!bWantsToJump && CurrentGrindState != EGrindState::Rail)
 					{
 						GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Yellow, FString(TEXT("/TT")));
 						AuthLaunchCharacter(PreviousRealVelocity, true, true);
@@ -1075,6 +1162,12 @@ void AJetBotCharacter::TickFloor()
 
 void AJetBotCharacter::SetCurrentFloorNormal(const FVector& InCurrentFloorNormal)
 {
+
+	if (!IsLocallyControlled() && Role != ROLE_Authority)
+	{
+		return;
+	}
+
 	if (Role != ROLE_Authority)
 	{
 		ServerSetCurrentFloorNormal(InCurrentFloorNormal);
@@ -1119,6 +1212,11 @@ void AJetBotCharacter::TickWall(const float DeltaTime)
 
 void AJetBotCharacter::SetCurrentWallNormal(const FVector& InCurrentWallNormal)
 {
+	if (!IsLocallyControlled() && Role != ROLE_Authority)
+	{
+		return;
+	}
+
 	if (Role != ROLE_Authority)
 	{
 		ServerSetCurrentWallNormal(InCurrentWallNormal);
@@ -1310,6 +1408,11 @@ void AJetBotCharacter::InitializeSoundPlayers()
 
 void AJetBotCharacter::Landed(const FHitResult & Hit)
 {
+	if (!IsLocallyControlled())
+	{
+		return;
+	}
+
 	//Update our floor
 	FFindFloorResult FloorResult;
 	GetCharacterMovement()->FindFloor(GetCapsuleComponent()->GetComponentLocation(), FloorResult, false);

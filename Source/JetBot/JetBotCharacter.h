@@ -258,6 +258,11 @@ protected:
 	UFUNCTION(Server, Reliable, WithValidation)
 	void ServerAuthSetVelocity(const FVector& InVelocity);
 
+	void AuthAddImpulse(const FVector& InVelocity);
+
+	UFUNCTION(Server, Reliable, WithValidation)
+	void ServerAuthAddImpulse(const FVector& InVelocity);
+
 	//Update our "Real Velocity
 	void TickRealVelocity(const float DeltaTime);
 

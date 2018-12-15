@@ -207,7 +207,7 @@ void AJetBotCharacter::SetJump(bool bInWantsToJump)
 		{
 			bool bJumped = false;
 
-			GetCharacterMovement()->SetMovementMode(MOVE_Falling);
+			AuthSetMovementMode(MOVE_Falling);
 
 			FVector JumpDirection = FVector(0, 0, 1);
 
@@ -222,8 +222,7 @@ void AJetBotCharacter::SetJump(bool bInWantsToJump)
 				GrindingOnSpline = nullptr;
 				bIsTryingToGrind = false;
 
-				GetCharacterMovement()->Velocity = GetRealVelocity() + GetCharacterMovement()->JumpZVelocity*JumpDirection;
-
+				AuthSetVelocity(GetRealVelocity() + GetCharacterMovement()->JumpZVelocity*JumpDirection);
 				
 			}
 			// If we are on a floor
@@ -235,7 +234,7 @@ void AJetBotCharacter::SetJump(bool bInWantsToJump)
 					GetRealVelocity().Z = 0.0f;
 				}
 
-				GetCharacterMovement()->Velocity = GetRealVelocity() + GetCharacterMovement()->JumpZVelocity*JumpDirection;
+				AuthSetVelocity(GetRealVelocity() + GetCharacterMovement()->JumpZVelocity*JumpDirection);
 
 				bJumped = true;
 
@@ -248,14 +247,18 @@ void AJetBotCharacter::SetJump(bool bInWantsToJump)
 				JumpDirection.Z = FMath::Max(GetCurrentWallNormal().Z, MinWallJumpZ);
 				//JumpDirection.Normalize();
 
+				FVector NewVelocity = GetCharacterMovement()->Velocity;
+
 				if (GetCharacterMovement()->Velocity.Z < 0.0f)
 				{
-					GetCharacterMovement()->Velocity.Z = 0.0f;
+					NewVelocity.Z = 0.0f;
 				}
 
-				GetCharacterMovement()->Velocity.X += WallJumpXYVelocity*JumpDirection.X;
-				GetCharacterMovement()->Velocity.Y += WallJumpXYVelocity*JumpDirection.Y;
-				GetCharacterMovement()->Velocity.Z += GetCharacterMovement()->JumpZVelocity*JumpDirection.Z;
+				NewVelocity.X += WallJumpXYVelocity*JumpDirection.X;
+				NewVelocity.Y += WallJumpXYVelocity*JumpDirection.Y;
+				NewVelocity.Z += GetCharacterMovement()->JumpZVelocity*JumpDirection.Z;
+
+				AuthSetVelocity(NewVelocity);
 
 				GEngine->AddOnScreenDebugMessage(-1, 1.0, FColor::Yellow, FString(TEXT("</")));
 
@@ -409,7 +412,7 @@ void AJetBotCharacter::OnWalkingOffLedge_Implementation(const FVector & Previous
 	//if we walk off a ledge, set our velocity to what it was before
 	if (GetRealVelocity() != FVector::ZeroVector && CurrentGrindState != EGrindState::Rail)
 	{
-		GetCharacterMovement()->Velocity = GetRealVelocity();
+		AuthSetVelocity(GetRealVelocity());
 		const float VolumeMultiplier = FMath::Min(GetRealVelocity().Size() / 2000.0f, 1.0f);
 		UGameplayStatics::PlaySoundAtLocation(this, PeelOffSound, GetActorLocation() - FVector(0, 0, GetCapsuleComponent()->GetScaledCapsuleHalfHeight()), VolumeMultiplier);
 	}
@@ -462,7 +465,7 @@ void AJetBotCharacter::OnCapsuleComponentHit(UPrimitiveComponent* HitComponent, 
 				}
 				else
 				{
-					LaunchCharacter(NewVelocity, true, true);
+					AuthLaunchCharacter(NewVelocity, true, true);
 					GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Yellow, FString(TEXT(">/")));
 				}
 
@@ -480,9 +483,8 @@ void AJetBotCharacter::OnCapsuleComponentHit(UPrimitiveComponent* HitComponent, 
 				
 			}
 
-			GetCharacterMovement()->SetMovementMode(MOVE_Falling);
+			AuthSetMovementMode(MOVE_Falling);
 			SetCurrentFloorNormal(FVector::ZeroVector);
-
 
 			SetCurrentWallNormal(Hit.Normal);
 
@@ -511,6 +513,66 @@ void AJetBotCharacter::SetNotTryingToGrind()
 void AJetBotCharacter::SetNotTryingToJump()
 {
 	bIsTryingToJump = false;
+}
+
+void AJetBotCharacter::AuthLaunchCharacter(const FVector& LaunchVelocity, bool bXY, bool bZ)
+{
+	if (Role != ROLE_Authority)
+	{
+		ServerAuthLaunchCharacter(LaunchVelocity, bXY, bZ);
+	}
+
+	LaunchCharacter(LaunchVelocity, bXY, bZ);
+}
+
+void AJetBotCharacter::AuthSetMovementMode(const EMovementMode& InMovementMode)
+{
+	if (Role != ROLE_Authority)
+	{
+		ServerAuthSetMovementMode(InMovementMode);
+	}
+
+	GetCharacterMovement()->SetMovementMode(InMovementMode);
+}
+
+void AJetBotCharacter::AuthSetVelocity(const FVector& InVelocity)
+{
+	if (Role != ROLE_Authority)
+	{
+		ServerAuthSetVelocity(InVelocity);
+	}
+
+	GetCharacterMovement()->Velocity = InVelocity;
+}
+
+void AJetBotCharacter::ServerAuthSetVelocity_Implementation(const FVector& InVelocity)
+{
+	AuthSetVelocity(InVelocity);
+}
+
+bool AJetBotCharacter::ServerAuthSetVelocity_Validate(const FVector& InVelocity)
+{
+	return true;
+}
+
+void AJetBotCharacter::ServerAuthSetMovementMode_Implementation(const EMovementMode& InMovementMode)
+{
+	AuthSetMovementMode(InMovementMode);
+}
+
+bool AJetBotCharacter::ServerAuthSetMovementMode_Validate(const EMovementMode& InMovementMode)
+{
+	return true;
+}
+
+void AJetBotCharacter::ServerAuthLaunchCharacter_Implementation(const FVector& LaunchVelocity, bool bXY, bool bZ)
+{
+	AuthLaunchCharacter(LaunchVelocity, bXY, bZ);
+}
+
+bool AJetBotCharacter::ServerAuthLaunchCharacter_Validate(const FVector& LaunchVelocity, bool bXY, bool bZ)
+{
+	return true;
 }
 
 void AJetBotCharacter::TickRealVelocity(const float DeltaTime)
@@ -760,10 +822,10 @@ void AJetBotCharacter::SetCurrentGrindState(EGrindState InGrindState)
 		{
 			if (GetCharacterMovement()->Velocity.Z > 0.0f)
 			{
-				GetCharacterMovement()->Velocity.Z = 0.0f;
+				AuthSetVelocity(GetCharacterMovement()->Velocity*FVector(1, 1, 0));
 			}
 
-			GetCharacterMovement()->Velocity = GetCharacterMovement()->Velocity.ProjectOnTo(GrindingOnSpline->FindDirectionClosestToWorldLocation(FeetComponent->GetComponentLocation(), ESplineCoordinateSpace::World));
+			AuthSetVelocity(GetCharacterMovement()->Velocity.ProjectOnTo(GrindingOnSpline->FindDirectionClosestToWorldLocation(FeetComponent->GetComponentLocation(), ESplineCoordinateSpace::World)));
 
 			SetActorLocation(GrindingOnSpline->FindLocationClosestToWorldLocation(FeetComponent->GetComponentLocation(), ESplineCoordinateSpace::World) + FeetComponentOffset);
 		}
@@ -828,9 +890,6 @@ void AJetBotCharacter::TickGrinding(const float DeltaTime)
 			GetCharacterMovement()->SetPlaneConstraintNormal(PlaneConstraintNormal);
 			GetCharacterMovement()->SetPlaneConstraintOrigin(GrindingOnSpline->GetWorldLocationAtSplinePoint(0));
 			GetCharacterMovement()->SetPlaneConstraintAxisSetting(EPlaneConstraintAxisSetting::Custom);
-			//GetCharacterMovement()->Velocity = GetCharacterMovement()->Velocity.ProjectOnTo(GrindingOnSpline->FindDirectionClosestToWorldLocation(FeetComponent->GetComponentLocation(), ESplineCoordinateSpace::World));
-
-			////SetActorLocation(GrindingOnSpline->FindLocationClosestToWorldLocation(FeetComponent->GetComponentLocation(), ESplineCoordinateSpace::World) + FeetComponentOffset);
 
 			break;
 		}
@@ -839,7 +898,7 @@ void AJetBotCharacter::TickGrinding(const float DeltaTime)
 			GetCharacterMovement()->SetPlaneConstraintEnabled(false);
 			if (GetCurrentWallNormal() != FVector::ZeroVector)
 			{
-				GetCharacterMovement()->Velocity = FVector::VectorPlaneProject(GetCharacterMovement()->Velocity, GetCurrentWallNormal());
+				AuthSetVelocity(FVector::VectorPlaneProject(GetCharacterMovement()->Velocity, GetCurrentWallNormal()));
 
 				if (GetCharacterMovement()->Velocity.Z < 0.0f)
 				{
@@ -848,7 +907,9 @@ void AJetBotCharacter::TickGrinding(const float DeltaTime)
 					{
 						if (JetScale == 0.0f)
 						{
-							GetCharacterMovement()->Velocity.Z = WallGrindFallingVelocityZ;
+							FVector NewVelocity = GetCharacterMovement()->Velocity;
+							NewVelocity.Z = WallGrindFallingVelocityZ;
+							AuthSetVelocity(NewVelocity);
 						}
 					}
 					else
@@ -960,6 +1021,11 @@ void AJetBotCharacter::AddScore(ETrickEnum Trick)
 
 void AJetBotCharacter::TickFloor()
 {
+	//if (!IsLocallyControlled())
+	//{
+	//	return;
+	//}
+
 	//Update our floor
 	FFindFloorResult FloorResult;
 	GetCharacterMovement()->FindFloor(GetCapsuleComponent()->GetComponentLocation(), FloorResult, false);
@@ -981,7 +1047,7 @@ void AJetBotCharacter::TickFloor()
 					if (!bWantsToJump && !(CurrentGrindState != EGrindState::Rail))
 					{
 						GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Yellow, FString(TEXT("/TT")));
-						LaunchCharacter(PreviousRealVelocity, true, true);
+						AuthLaunchCharacter(PreviousRealVelocity, true, true);
 						SetCurrentFloorNormal(FVector::ZeroVector);
 
 						const float VolumeMultiplier = FMath::Min(GetRealVelocity().Size() / 2000.0f, 1.0f);
@@ -995,8 +1061,7 @@ void AJetBotCharacter::TickFloor()
 				{
 					GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Yellow, FString(TEXT("__/")));
 					SetCurrentFloorNormal(FloorResult.HitResult.Normal);
-					GetCharacterMovement()->Velocity = FVector::VectorPlaneProject(GetRealVelocity(), GetCurrentFloorNormal());
-
+					AuthSetVelocity(FVector::VectorPlaneProject(GetRealVelocity(), GetCurrentFloorNormal()));
 				}
 			}
 		}
@@ -1099,8 +1164,8 @@ void AJetBotCharacter::TickAilerons(float DeltaTime)
 		{
 			//Peeled off
 			GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Yellow, FString(TEXT("/_)_/")));
-			GetCharacterMovement()->SetMovementMode(MOVE_Falling);
-			GetCharacterMovement()->Velocity = GetRealVelocity() + GetRealVelocity().ProjectOnTo(GetCurrentFloorNormal());
+			AuthSetMovementMode(MOVE_Falling);
+			AuthSetVelocity(GetRealVelocity() + GetRealVelocity().ProjectOnTo(GetCurrentFloorNormal()));
 			SetCurrentFloorNormal(FVector::ZeroVector);
 
 			const float VolumeMultiplier = FMath::Min(GetRealVelocity().Size() / 2000.0f, 1.0f);
@@ -1114,8 +1179,12 @@ void AJetBotCharacter::TickAilerons(float DeltaTime)
 
 	FVector AileronsVelocity = GetCharacterMovement()->Velocity.ProjectOnToNormal(AileronsNormal);
 
-	GetCharacterMovement()->Velocity.X = AileronsVelocity.X;
-	GetCharacterMovement()->Velocity.Y = AileronsVelocity.Y;
+	FVector NewVelocity = GetCharacterMovement()->Velocity;
+
+	NewVelocity.X = AileronsVelocity.X;
+	NewVelocity.Y = AileronsVelocity.Y;
+
+	AuthSetVelocity(NewVelocity);
 }
 
 void AJetBotCharacter::TickSounds(float DeltaTime)
@@ -1278,7 +1347,7 @@ void AJetBotCharacter::Landed(const FHitResult & Hit)
 		{
 			if (bLanded)
 			{
-				GetCharacterMovement()->Velocity = FVector::VectorPlaneProject(GetRealVelocity(), GetCurrentFloorNormal());
+				AuthSetVelocity(FVector::VectorPlaneProject(GetRealVelocity(), GetCurrentFloorNormal()));
 			}
 		}
 	}

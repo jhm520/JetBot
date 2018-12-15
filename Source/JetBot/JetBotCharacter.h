@@ -243,6 +243,21 @@ protected:
 
 	//#Velocity
 
+	void AuthLaunchCharacter(const FVector& LaunchVelocity, bool bXY, bool bZ);
+
+	UFUNCTION(Server, Reliable, WithValidation)
+	void ServerAuthLaunchCharacter(const FVector& LaunchVelocity, bool bXY, bool bZ);
+
+	void AuthSetMovementMode(const EMovementMode& InMovementMode);
+
+	UFUNCTION(Server, Reliable, WithValidation)
+	void ServerAuthSetMovementMode(const EMovementMode& InMovementMode);
+
+	void AuthSetVelocity(const FVector& InVelocity);
+
+	UFUNCTION(Server, Reliable, WithValidation)
+	void ServerAuthSetVelocity(const FVector& InVelocity);
+
 	//Update our "Real Velocity
 	void TickRealVelocity(const float DeltaTime);
 
